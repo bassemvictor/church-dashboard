@@ -1,0 +1,22 @@
+node_modules
+.amplify
+.test-dist
+amplify_outputs*
+npm-debug.log*
+.DS_Store
+.npm
+aws_creds.txt
+dist
+android/.gradle
+android/local.properties
+
+# Ignore Gradle project-specific cache directory
+.gradle
+
+# Ignore Gradle build output directory
+build
+
+# Local notes
+notes.txt
+
+Prompt*

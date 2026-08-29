@@ -1,0 +1,1255 @@
+import { randomUUID } from "node:crypto";
+
+import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
+import {
+  BatchGetCommand,
+  DeleteCommand,
+  DynamoDBDocumentClient,
+  GetCommand,
+  PutCommand,
+  QueryCommand,
+  TransactWriteCommand,
+} from "@aws-sdk/lib-dynamodb";
+import type { APIGatewayProxyEventV2WithJWTAuthorizer, APIGatewayProxyHandlerV2 } from "aws-lambda";
+
+import {
+  churchNewsApprovalStatuses,
+  churchNewsCategories,
+  churchExpenseCategories,
+  churchExpenseStatuses,
+  churchStatusModes,
+  type ChurchNews,
+  type ChurchNewsApprovalStatus,
+  type ChurchNewsCategory,
+  defaultDashboardSettings,
+  type CreateChurchNewsInput,
+  type ChurchExpense,
+  type ChurchExpenseCategory,
+  type ChurchExpenseStatus,
+  type ChurchExpenseStatusMode,
+  type CreateChurchExpenseInput,
+  type DashboardSettings,
+  getExpenseApprovalStatus,
+  getNewsApprovalStatus,
+  isExpenseVisible,
+  isNewsVisible,
+  type ReorderChurchNewsInput,
+  type ReorderChurchExpensesInput,
+} from "../../../shared/church-dashboard.js";
+
+type BaseItem = {
+  PK: string;
+  SK: string;
+  entityType: string;
+  createdAt: string;
+  updatedAt: string;
+  GSI1PK?: string;
+  GSI1SK?: string;
+  GSI2PK?: string;
+  GSI2SK?: string;
+};
+
+type ExpenseItem = BaseItem & {
+  id: string;
+  title: string;
+  description?: string;
+  paymentDate?: string;
+  visibleFrom?: string;
+  visibleUntil?: string;
+  requiresApproval?: boolean;
+  approvalStatus?: ChurchNewsApprovalStatus;
+  category: ChurchExpenseCategory;
+  totalBudget: number;
+  fundedAmount: number;
+  imageUrl?: string;
+  imageKey?: string;
+  icon?: string;
+  displayOrder: number;
+  active: boolean;
+  statusMode: ChurchExpenseStatusMode;
+  manualStatus?: ChurchExpenseStatus;
+  customStatusText?: string;
+  customSubText?: string;
+};
+
+type SettingsItem = BaseItem & {
+  settings: DashboardSettings;
+};
+
+type LegacyDashboardSettings = {
+  churchName?: string;
+  dashboardTitle?: string;
+  mainVerseText?: string;
+  mainVerseReference?: string;
+  churchWebsiteUrl?: string;
+  donationUrl?: string;
+  eTransferText?: string;
+  showClock?: boolean;
+  showDate?: boolean;
+  refreshIntervalSeconds?: number;
+  rotationIntervalSeconds?: number;
+  mainViewRotationIntervalSeconds?: number;
+  itemsPerPage?: number;
+  newsDashboardTitle?: string;
+  newsItemsPerPage?: number;
+  common?: Partial<DashboardSettings["common"]>;
+  expenses?: Partial<DashboardSettings["expenses"]>;
+  news?: Partial<DashboardSettings["news"]>;
+};
+
+type NewsItem = BaseItem & {
+  id: string;
+  title: string;
+  description?: string;
+  category?: ChurchNewsCategory;
+  eventDate?: string;
+  startDate?: string;
+  endDate?: string;
+  requiresApproval?: boolean;
+  approvalStatus?: ChurchNewsApprovalStatus;
+  location?: string;
+  icon?: string;
+  active: boolean;
+  priority?: number;
+  displayOrder: number;
+};
+
+type RequestContext = {
+  groups: string[];
+  isAdmin: boolean;
+};
+
+const tableName = process.env.SHEPHERD_HUB_RECORDS_TABLE;
+
+if (!tableName) {
+  throw new Error("Missing SHEPHERD_HUB_RECORDS_TABLE environment variable.");
+}
+
+const ddbClient = new DynamoDBClient({});
+const documentClient = DynamoDBDocumentClient.from(ddbClient, {
+  marshallOptions: {
+    removeUndefinedValues: true,
+  },
+});
+
+const jsonResponse = (statusCode: number, body: unknown) => ({
+  statusCode,
+  headers: {
+    "content-type": "application/json",
+  },
+  body: JSON.stringify(body),
+});
+
+const padDisplayOrder = (displayOrder: number) => displayOrder.toString().padStart(5, "0");
+const expensePk = (id: string) => `EXPENSE#${id}`;
+const newsPk = (id: string) => `NEWS#${id}`;
+const settingsPk = () => "SETTINGS#DASHBOARD";
+
+const normalizeGroups = (value: unknown): string[] => {
+  if (Array.isArray(value)) {
+    return value.flatMap((entry) => normalizeGroups(entry));
+  }
+
+  if (typeof value !== "string") {
+    return [];
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return [];
+  }
+
+  if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
+    try {
+      const parsed = JSON.parse(trimmed);
+      return normalizeGroups(parsed);
+    } catch {
+      return trimmed
+        .slice(1, -1)
+        .split(",")
+        .map((entry) => entry.trim().replace(/^['"]|['"]$/g, ""));
+    }
+  }
+
+  return trimmed.split(",").map((entry) => entry.trim());
+};
+
+const getRequestContext = (event: APIGatewayProxyEventV2WithJWTAuthorizer): RequestContext => {
+  const claims = event.requestContext.authorizer?.jwt.claims ?? {};
+  const groups = normalizeGroups(claims["cognito:groups"]);
+  return {
+    groups,
+    isAdmin: groups.includes("admin"),
+  };
+};
+
+const requireAdmin = (context: RequestContext) => {
+  if (!context.isAdmin) {
+    throw Object.assign(new Error("You do not have permission to perform this action."), { statusCode: 403 });
+  }
+};
+
+const parseBody = <T>(event: APIGatewayProxyEventV2WithJWTAuthorizer): T => {
+  if (!event.body) {
+    throw Object.assign(new Error("Request body is required."), { statusCode: 400 });
+  }
+
+  try {
+    return JSON.parse(event.body) as T;
+  } catch {
+    throw Object.assign(new Error("Request body must be valid JSON."), { statusCode: 400 });
+  }
+};
+
+const isEnumValue = <T extends readonly string[]>(allowedValues: T, value: unknown): value is T[number] =>
+  typeof value === "string" && allowedValues.includes(value);
+
+const parseOptionalString = (value: unknown) => {
+  if (value === undefined || value === null) {
+    return undefined;
+  }
+
+  if (typeof value !== "string") {
+    throw Object.assign(new Error("Expected a string value."), { statusCode: 400 });
+  }
+
+  const trimmed = value.trim();
+  return trimmed || undefined;
+};
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+const parseObject = (value: unknown, fieldName: string) => {
+  if (!isRecord(value)) {
+    throw Object.assign(new Error(`${fieldName} must be an object.`), { statusCode: 400 });
+  }
+
+  return value;
+};
+
+const parseRequiredString = (value: unknown, fieldName: string) => {
+  const parsedValue = parseOptionalString(value);
+  if (!parsedValue) {
+    throw Object.assign(new Error(`${fieldName} is required.`), { statusCode: 400 });
+  }
+
+  return parsedValue;
+};
+
+const parseNumber = (value: unknown, fieldName: string) => {
+  if (typeof value !== "number" || Number.isNaN(value) || !Number.isFinite(value) || value < 0) {
+    throw Object.assign(new Error(`${fieldName} must be a non-negative number.`), { statusCode: 400 });
+  }
+
+  return value;
+};
+
+const parsePositiveNumber = (value: unknown, fieldName: string, minimum: number) => {
+  if (typeof value !== "number" || Number.isNaN(value) || !Number.isFinite(value) || value < minimum) {
+    throw Object.assign(new Error(`${fieldName} must be at least ${minimum}.`), { statusCode: 400 });
+  }
+
+  return value;
+};
+
+const parseBoolean = (value: unknown, fieldName: string) => {
+  if (typeof value !== "boolean") {
+    throw Object.assign(new Error(`${fieldName} must be true or false.`), { statusCode: 400 });
+  }
+
+  return value;
+};
+
+const validateVisibilityRange = (visibleFrom: string | undefined, visibleUntil: string | undefined) => {
+  if (visibleFrom && visibleUntil && new Date(visibleFrom).getTime() > new Date(visibleUntil).getTime()) {
+    throw Object.assign(new Error("visibleUntil must be on or after visibleFrom."), { statusCode: 400 });
+  }
+};
+
+const validateExpenseInput = (input: Record<string, unknown>): CreateChurchExpenseInput => {
+  const category = input.category;
+  if (!isEnumValue(churchExpenseCategories, category)) {
+    throw Object.assign(new Error("category is invalid."), { statusCode: 400 });
+  }
+
+  const statusMode = input.statusMode;
+  if (!isEnumValue(churchStatusModes, statusMode)) {
+    throw Object.assign(new Error("statusMode is invalid."), { statusCode: 400 });
+  }
+
+  const manualStatus = input.manualStatus;
+  if (manualStatus !== undefined && !isEnumValue(churchExpenseStatuses, manualStatus)) {
+    throw Object.assign(new Error("manualStatus is invalid."), { statusCode: 400 });
+  }
+
+  const paymentDate = parseOptionalIsoDate(input.paymentDate, "paymentDate");
+  const visibleFrom = parseOptionalIsoDate(input.visibleFrom, "visibleFrom");
+  const visibleUntil = parseOptionalIsoDate(input.visibleUntil, "visibleUntil");
+  const requiresApproval = input.requiresApproval === undefined ? undefined : parseBoolean(input.requiresApproval, "requiresApproval");
+  const approvalStatus = input.approvalStatus;
+  if (approvalStatus !== undefined && !isEnumValue(churchNewsApprovalStatuses, approvalStatus)) {
+    throw Object.assign(new Error("approvalStatus is invalid."), { statusCode: 400 });
+  }
+  validateVisibilityRange(visibleFrom, visibleUntil);
+
+  return {
+    title: parseRequiredString(input.title, "title"),
+    description: parseOptionalString(input.description),
+    paymentDate,
+    visibleFrom,
+    visibleUntil,
+    requiresApproval,
+    approvalStatus: approvalStatus as ChurchNewsApprovalStatus | undefined,
+    category,
+    totalBudget: parseNumber(input.totalBudget, "totalBudget"),
+    fundedAmount: parseNumber(input.fundedAmount, "fundedAmount"),
+    imageUrl: parseOptionalString(input.imageUrl),
+    imageKey: parseOptionalString(input.imageKey),
+    icon: parseOptionalString(input.icon),
+    active: parseBoolean(input.active, "active"),
+    statusMode,
+    manualStatus: manualStatus as ChurchExpenseStatus | undefined,
+    customStatusText: parseOptionalString(input.customStatusText),
+    customSubText: parseOptionalString(input.customSubText),
+  };
+};
+
+const validateSettingsInput = (input: Record<string, unknown>): DashboardSettings => {
+  if ("common" in input || "expenses" in input || "news" in input) {
+    const common = parseObject(input.common, "common");
+    const expenses = parseObject(input.expenses, "expenses");
+    const news = parseObject(input.news, "news");
+
+    return {
+      common: {
+        churchName: parseRequiredString(common.churchName, "common.churchName"),
+        showClock: parseBoolean(common.showClock, "common.showClock"),
+        showDate: parseBoolean(common.showDate, "common.showDate"),
+        refreshIntervalSeconds: parsePositiveNumber(common.refreshIntervalSeconds, "common.refreshIntervalSeconds", 15),
+        mainViewRotationIntervalSeconds: parsePositiveNumber(
+          common.mainViewRotationIntervalSeconds,
+          "common.mainViewRotationIntervalSeconds",
+          5,
+        ),
+      },
+      expenses: {
+        dashboardTitle: parseRequiredString(expenses.dashboardTitle, "expenses.dashboardTitle"),
+        mainVerseText: parseOptionalString(expenses.mainVerseText),
+        mainVerseReference: parseOptionalString(expenses.mainVerseReference),
+        churchWebsiteUrl: parseOptionalString(expenses.churchWebsiteUrl),
+        donationUrl: parseOptionalString(expenses.donationUrl),
+        eTransferText: parseOptionalString(expenses.eTransferText),
+        itemsPerPage: parsePositiveNumber(expenses.itemsPerPage, "expenses.itemsPerPage", 1),
+      },
+      news: {
+        dashboardTitle: parseRequiredString(news.dashboardTitle, "news.dashboardTitle"),
+        itemsPerPage: parsePositiveNumber(news.itemsPerPage, "news.itemsPerPage", 1),
+      },
+    };
+  }
+
+  return {
+    common: {
+      churchName: parseRequiredString(input.churchName, "churchName"),
+      showClock: parseBoolean(input.showClock, "showClock"),
+      showDate: parseBoolean(input.showDate, "showDate"),
+      refreshIntervalSeconds: parsePositiveNumber(input.refreshIntervalSeconds, "refreshIntervalSeconds", 15),
+      mainViewRotationIntervalSeconds: parsePositiveNumber(
+        input.mainViewRotationIntervalSeconds ?? input.rotationIntervalSeconds,
+        "mainViewRotationIntervalSeconds",
+        5,
+      ),
+    },
+    expenses: {
+      dashboardTitle: parseRequiredString(input.dashboardTitle, "dashboardTitle"),
+      mainVerseText: parseOptionalString(input.mainVerseText),
+      mainVerseReference: parseOptionalString(input.mainVerseReference),
+      churchWebsiteUrl: parseOptionalString(input.churchWebsiteUrl),
+      donationUrl: parseOptionalString(input.donationUrl),
+      eTransferText: parseOptionalString(input.eTransferText),
+      itemsPerPage: parsePositiveNumber(input.itemsPerPage, "itemsPerPage", 1),
+    },
+    news: {
+      dashboardTitle: parseRequiredString(
+        input.newsDashboardTitle ?? defaultDashboardSettings.news.dashboardTitle,
+        "newsDashboardTitle",
+      ),
+      itemsPerPage: parsePositiveNumber(
+        input.newsItemsPerPage ?? input.itemsPerPage ?? defaultDashboardSettings.news.itemsPerPage,
+        "newsItemsPerPage",
+        1,
+      ),
+    },
+  };
+};
+
+const sanitizeDashboardSettings = (settings?: Partial<DashboardSettings> | LegacyDashboardSettings): DashboardSettings => {
+  const legacy = (settings ?? {}) as LegacyDashboardSettings;
+  const common = isRecord(legacy.common) ? legacy.common : {};
+  const expenses = isRecord(legacy.expenses) ? legacy.expenses : {};
+  const news = isRecord(legacy.news) ? legacy.news : {};
+
+  return {
+    common: {
+      churchName: typeof common.churchName === "string" ? common.churchName : legacy.churchName ?? defaultDashboardSettings.common.churchName,
+      showClock: typeof common.showClock === "boolean" ? common.showClock : legacy.showClock ?? defaultDashboardSettings.common.showClock,
+      showDate: typeof common.showDate === "boolean" ? common.showDate : legacy.showDate ?? defaultDashboardSettings.common.showDate,
+      refreshIntervalSeconds:
+        typeof common.refreshIntervalSeconds === "number"
+          ? common.refreshIntervalSeconds
+          : legacy.refreshIntervalSeconds ?? defaultDashboardSettings.common.refreshIntervalSeconds,
+      mainViewRotationIntervalSeconds:
+        typeof common.mainViewRotationIntervalSeconds === "number"
+          ? common.mainViewRotationIntervalSeconds
+          : legacy.mainViewRotationIntervalSeconds ?? legacy.rotationIntervalSeconds ?? defaultDashboardSettings.common.mainViewRotationIntervalSeconds,
+    },
+    expenses: {
+      dashboardTitle:
+        typeof expenses.dashboardTitle === "string"
+          ? expenses.dashboardTitle
+          : legacy.dashboardTitle ?? defaultDashboardSettings.expenses.dashboardTitle,
+      mainVerseText:
+        typeof expenses.mainVerseText === "string"
+          ? expenses.mainVerseText
+          : legacy.mainVerseText ?? defaultDashboardSettings.expenses.mainVerseText,
+      mainVerseReference:
+        typeof expenses.mainVerseReference === "string"
+          ? expenses.mainVerseReference
+          : legacy.mainVerseReference ?? defaultDashboardSettings.expenses.mainVerseReference,
+      churchWebsiteUrl:
+        typeof expenses.churchWebsiteUrl === "string"
+          ? expenses.churchWebsiteUrl
+          : legacy.churchWebsiteUrl ?? defaultDashboardSettings.expenses.churchWebsiteUrl,
+      donationUrl:
+        typeof expenses.donationUrl === "string"
+          ? expenses.donationUrl
+          : legacy.donationUrl ?? defaultDashboardSettings.expenses.donationUrl,
+      eTransferText:
+        typeof expenses.eTransferText === "string"
+          ? expenses.eTransferText
+          : legacy.eTransferText ?? defaultDashboardSettings.expenses.eTransferText,
+      itemsPerPage:
+        typeof expenses.itemsPerPage === "number"
+          ? expenses.itemsPerPage
+          : legacy.itemsPerPage ?? defaultDashboardSettings.expenses.itemsPerPage,
+    },
+    news: {
+      dashboardTitle:
+        typeof news.dashboardTitle === "string"
+          ? news.dashboardTitle
+          : legacy.newsDashboardTitle ?? defaultDashboardSettings.news.dashboardTitle,
+      itemsPerPage:
+        typeof news.itemsPerPage === "number"
+          ? news.itemsPerPage
+          : legacy.newsItemsPerPage ?? legacy.itemsPerPage ?? defaultDashboardSettings.news.itemsPerPage,
+    },
+  };
+};
+
+const toExpense = (item: ExpenseItem): ChurchExpense => ({
+  id: item.id,
+  title: item.title,
+  description: item.description,
+  paymentDate: item.paymentDate,
+  visibleFrom: item.visibleFrom,
+  visibleUntil: item.visibleUntil,
+  requiresApproval: item.requiresApproval,
+  approvalStatus: item.approvalStatus,
+  category: item.category,
+  totalBudget: item.totalBudget,
+  fundedAmount: item.fundedAmount,
+  imageUrl: item.imageUrl,
+  imageKey: item.imageKey,
+  icon: item.icon,
+  displayOrder: item.displayOrder,
+  active: item.active,
+  statusMode: item.statusMode,
+  manualStatus: item.manualStatus,
+  customStatusText: item.customStatusText,
+  customSubText: item.customSubText,
+  createdAt: item.createdAt,
+  updatedAt: item.updatedAt,
+});
+
+const toExpenseItem = (expense: ChurchExpense): ExpenseItem => ({
+  PK: expensePk(expense.id),
+  SK: "EXPENSE",
+  entityType: "Expense",
+  GSI1PK: "EXPENSE",
+  GSI1SK: `${padDisplayOrder(expense.displayOrder)}#${expense.id}`,
+  GSI2PK: expense.active ? "EXPENSE#ACTIVE" : "EXPENSE#INACTIVE",
+  GSI2SK: `${padDisplayOrder(expense.displayOrder)}#${expense.id}`,
+  ...expense,
+});
+
+const toNews = (item: NewsItem): ChurchNews => ({
+  id: item.id,
+  title: item.title,
+  description: item.description,
+  category: item.category,
+  eventDate: item.eventDate,
+  startDate: item.startDate,
+  endDate: item.endDate,
+  requiresApproval: item.requiresApproval,
+  approvalStatus: item.approvalStatus,
+  location: item.location,
+  icon: item.icon,
+  active: item.active,
+  priority: item.priority,
+  displayOrder: item.displayOrder,
+  createdAt: item.createdAt,
+  updatedAt: item.updatedAt,
+});
+
+const toNewsItem = (news: ChurchNews): NewsItem => ({
+  PK: newsPk(news.id),
+  SK: "NEWS",
+  entityType: "ChurchNews",
+  GSI1PK: "NEWS",
+  GSI1SK: `${padDisplayOrder(news.displayOrder)}#${news.id}`,
+  GSI2PK: news.active ? "NEWS#ACTIVE" : "NEWS#INACTIVE",
+  GSI2SK: `${padDisplayOrder(news.displayOrder)}#${news.id}`,
+  ...news,
+});
+
+const parseOptionalIsoDate = (value: unknown, fieldName: string) => {
+  const parsed = parseOptionalString(value);
+  if (!parsed) {
+    return undefined;
+  }
+
+  const normalized = new Date(parsed);
+  if (Number.isNaN(normalized.getTime())) {
+    throw Object.assign(new Error(`${fieldName} must be a valid date.`), { statusCode: 400 });
+  }
+
+  return normalized.toISOString();
+};
+
+const validateNewsInput = (input: Record<string, unknown>): CreateChurchNewsInput => {
+  const category = input.category;
+  if (category !== undefined && !isEnumValue(churchNewsCategories, category)) {
+    throw Object.assign(new Error("category is invalid."), { statusCode: 400 });
+  }
+
+  const startDate = parseOptionalIsoDate(input.startDate, "startDate");
+  const endDate = parseOptionalIsoDate(input.endDate, "endDate");
+  const eventDate = parseOptionalIsoDate(input.eventDate, "eventDate");
+  const requiresApproval = input.requiresApproval === undefined ? undefined : parseBoolean(input.requiresApproval, "requiresApproval");
+  const approvalStatus = input.approvalStatus;
+  if (approvalStatus !== undefined && !isEnumValue(churchNewsApprovalStatuses, approvalStatus)) {
+    throw Object.assign(new Error("approvalStatus is invalid."), { statusCode: 400 });
+  }
+  validateVisibilityRange(startDate, endDate);
+
+  return {
+    title: parseRequiredString(input.title, "title"),
+    description: parseOptionalString(input.description),
+    category: category as ChurchNewsCategory | undefined,
+    eventDate,
+    startDate,
+    endDate,
+    requiresApproval,
+    approvalStatus: approvalStatus as ChurchNewsApprovalStatus | undefined,
+    location: parseOptionalString(input.location),
+    icon: parseOptionalString(input.icon),
+    active: parseBoolean(input.active, "active"),
+    priority: input.priority === undefined ? undefined : parseNumber(input.priority, "priority"),
+  };
+};
+
+const listExpenses = async (activeOnly: boolean, now = new Date()) => {
+  const result = await documentClient.send(
+    new QueryCommand({
+      TableName: tableName,
+      IndexName: activeOnly ? "GSI2" : "GSI1",
+      KeyConditionExpression: activeOnly ? "GSI2PK = :pk" : "GSI1PK = :pk",
+      ExpressionAttributeValues: {
+        ":pk": activeOnly ? "EXPENSE#ACTIVE" : "EXPENSE",
+      },
+    }),
+  );
+
+  const items = (result.Items ?? []) as ExpenseItem[];
+  return (activeOnly ? items.filter((item) => isExpenseVisible(item, now)) : items)
+    .sort((left, right) => left.displayOrder - right.displayOrder)
+    .map(toExpense);
+};
+
+const compareNews = (left: ChurchNews, right: ChurchNews) => {
+  const priorityDiff = (right.priority ?? 0) - (left.priority ?? 0);
+  if (priorityDiff !== 0) {
+    return priorityDiff;
+  }
+
+  const orderDiff = left.displayOrder - right.displayOrder;
+  if (orderDiff !== 0) {
+    return orderDiff;
+  }
+
+  const leftEventTime = left.eventDate ? new Date(left.eventDate).getTime() : Number.POSITIVE_INFINITY;
+  const rightEventTime = right.eventDate ? new Date(right.eventDate).getTime() : Number.POSITIVE_INFINITY;
+  return leftEventTime - rightEventTime;
+};
+
+const listNews = async (activeOnly: boolean, now = new Date()) => {
+  const result = await documentClient.send(
+    new QueryCommand({
+      TableName: tableName,
+      IndexName: activeOnly ? "GSI2" : "GSI1",
+      KeyConditionExpression: activeOnly ? "GSI2PK = :pk" : "GSI1PK = :pk",
+      ExpressionAttributeValues: {
+        ":pk": activeOnly ? "NEWS#ACTIVE" : "NEWS",
+      },
+    }),
+  );
+
+  const items = (result.Items ?? []) as NewsItem[];
+  const visibleItems = activeOnly ? items.filter((item) => isNewsVisible(item, now)) : items;
+  return visibleItems
+    .map(toNews)
+    .sort(activeOnly ? compareNews : (left, right) => left.displayOrder - right.displayOrder);
+};
+
+const getExpense = async (id: string) => {
+  const result = await documentClient.send(
+    new GetCommand({
+      TableName: tableName,
+      Key: {
+        PK: expensePk(id),
+        SK: "EXPENSE",
+      },
+    }),
+  );
+
+  return result.Item as ExpenseItem | undefined;
+};
+
+const getNews = async (id: string) => {
+  const result = await documentClient.send(
+    new GetCommand({
+      TableName: tableName,
+      Key: {
+        PK: newsPk(id),
+        SK: "NEWS",
+      },
+    }),
+  );
+
+  return result.Item as NewsItem | undefined;
+};
+
+const getSettings = async () => {
+  const result = await documentClient.send(
+    new GetCommand({
+      TableName: tableName,
+      Key: {
+        PK: settingsPk(),
+        SK: "SETTINGS",
+      },
+    }),
+  );
+
+  const settingsItem = result.Item as SettingsItem | undefined;
+  return sanitizeDashboardSettings(settingsItem?.settings);
+};
+
+const saveSettings = async (settings: DashboardSettings) => {
+  const now = new Date().toISOString();
+  const current = await documentClient.send(
+    new GetCommand({
+      TableName: tableName,
+      Key: {
+        PK: settingsPk(),
+        SK: "SETTINGS",
+      },
+    }),
+  );
+  const existing = current.Item as SettingsItem | undefined;
+  const sanitizedSettings = sanitizeDashboardSettings(settings);
+
+  const item: SettingsItem = {
+    PK: settingsPk(),
+    SK: "SETTINGS",
+    entityType: "DashboardSettings",
+    settings: sanitizedSettings,
+    createdAt: existing?.createdAt ?? now,
+    updatedAt: now,
+  };
+
+  await documentClient.send(
+    new PutCommand({
+      TableName: tableName,
+      Item: item,
+    }),
+  );
+
+  return sanitizedSettings;
+};
+
+const createExpense = async (input: CreateChurchExpenseInput) => {
+  const now = new Date().toISOString();
+  const existingItems = await listExpenses(false);
+  const nextDisplayOrder = existingItems.length + 1;
+
+  const expense: ChurchExpense = {
+    id: randomUUID(),
+    displayOrder: nextDisplayOrder,
+    createdAt: now,
+    updatedAt: now,
+    ...input,
+    requiresApproval: input.requiresApproval ?? false,
+    approvalStatus: input.requiresApproval ? "PENDING" : "NOT_REQUIRED",
+  };
+
+  await documentClient.send(
+    new PutCommand({
+      TableName: tableName,
+      Item: toExpenseItem(expense),
+    }),
+  );
+
+  return expense;
+};
+
+const createNews = async (input: CreateChurchNewsInput) => {
+  const now = new Date().toISOString();
+  const existingItems = await listNews(false);
+  const nextDisplayOrder = existingItems.length + 1;
+
+  const news: ChurchNews = {
+    id: randomUUID(),
+    displayOrder: nextDisplayOrder,
+    createdAt: now,
+    updatedAt: now,
+    ...input,
+    requiresApproval: input.requiresApproval ?? false,
+    approvalStatus: input.requiresApproval ? "PENDING" : "NOT_REQUIRED",
+  };
+
+  await documentClient.send(
+    new PutCommand({
+      TableName: tableName,
+      Item: toNewsItem(news),
+    }),
+  );
+
+  return news;
+};
+
+const updateExpense = async (id: string, input: CreateChurchExpenseInput) => {
+  const existing = await getExpense(id);
+  if (!existing) {
+    throw Object.assign(new Error("Expense not found."), { statusCode: 404 });
+  }
+
+  const nextRequiresApproval = input.requiresApproval ?? existing.requiresApproval ?? false;
+  const nextApprovalStatus = !nextRequiresApproval
+    ? "NOT_REQUIRED"
+    : getExpenseApprovalStatus({
+      requiresApproval: true,
+      approvalStatus: input.approvalStatus ?? existing.approvalStatus,
+    }) === "APPROVED"
+      ? "APPROVED"
+      : "PENDING";
+
+  const expense: ChurchExpense = {
+    id,
+    createdAt: existing.createdAt,
+    displayOrder: existing.displayOrder,
+    updatedAt: new Date().toISOString(),
+    ...input,
+    requiresApproval: nextRequiresApproval,
+    approvalStatus: nextApprovalStatus,
+  };
+
+  await documentClient.send(
+    new PutCommand({
+      TableName: tableName,
+      Item: toExpenseItem(expense),
+    }),
+  );
+
+  return expense;
+};
+
+const approveExpense = async (id: string) => {
+  const existing = await getExpense(id);
+  if (!existing) {
+    throw Object.assign(new Error("Expense not found."), { statusCode: 404 });
+  }
+
+  const expense: ChurchExpense = {
+    ...toExpense(existing),
+    requiresApproval: existing.requiresApproval ?? false,
+    approvalStatus: existing.requiresApproval ? "APPROVED" : "NOT_REQUIRED",
+    updatedAt: new Date().toISOString(),
+  };
+
+  await documentClient.send(
+    new PutCommand({
+      TableName: tableName,
+      Item: toExpenseItem(expense),
+    }),
+  );
+
+  return expense;
+};
+
+const updateNews = async (id: string, input: CreateChurchNewsInput) => {
+  const existing = await getNews(id);
+  if (!existing) {
+    throw Object.assign(new Error("News item not found."), { statusCode: 404 });
+  }
+
+  const nextRequiresApproval = input.requiresApproval ?? existing.requiresApproval ?? false;
+  const nextApprovalStatus = !nextRequiresApproval
+    ? "NOT_REQUIRED"
+    : getNewsApprovalStatus({
+      requiresApproval: true,
+      approvalStatus: input.approvalStatus ?? existing.approvalStatus,
+    }) === "APPROVED"
+      ? "APPROVED"
+      : "PENDING";
+
+  const news: ChurchNews = {
+    id,
+    createdAt: existing.createdAt,
+    displayOrder: existing.displayOrder,
+    updatedAt: new Date().toISOString(),
+    ...input,
+    requiresApproval: nextRequiresApproval,
+    approvalStatus: nextApprovalStatus,
+  };
+
+  await documentClient.send(
+    new PutCommand({
+      TableName: tableName,
+      Item: toNewsItem(news),
+    }),
+  );
+
+  return news;
+};
+
+const approveNews = async (id: string) => {
+  const existing = await getNews(id);
+  if (!existing) {
+    throw Object.assign(new Error("News item not found."), { statusCode: 404 });
+  }
+
+  const news: ChurchNews = {
+    ...toNews(existing),
+    requiresApproval: existing.requiresApproval ?? false,
+    approvalStatus: existing.requiresApproval ? "APPROVED" : "NOT_REQUIRED",
+    updatedAt: new Date().toISOString(),
+  };
+
+  await documentClient.send(
+    new PutCommand({
+      TableName: tableName,
+      Item: toNewsItem(news),
+    }),
+  );
+
+  return news;
+};
+
+const deleteExpense = async (id: string) => {
+  const existing = await getExpense(id);
+  if (!existing) {
+    throw Object.assign(new Error("Expense not found."), { statusCode: 404 });
+  }
+
+  await documentClient.send(
+    new DeleteCommand({
+      TableName: tableName,
+      Key: {
+        PK: expensePk(id),
+        SK: "EXPENSE",
+      },
+    }),
+  );
+
+  const remainingExpenses = await listExpenses(false);
+  const reordered = remainingExpenses
+    .filter((item) => item.id !== id)
+    .map((item, index) => ({
+      ...item,
+      displayOrder: index + 1,
+      updatedAt: new Date().toISOString(),
+    }));
+
+  if (reordered.length) {
+    await reorderExpenses({
+      items: reordered.map((item) => ({ id: item.id, displayOrder: item.displayOrder })),
+    });
+  }
+};
+
+const deleteNews = async (id: string) => {
+  const existing = await getNews(id);
+  if (!existing) {
+    throw Object.assign(new Error("News item not found."), { statusCode: 404 });
+  }
+
+  await documentClient.send(
+    new DeleteCommand({
+      TableName: tableName,
+      Key: {
+        PK: newsPk(id),
+        SK: "NEWS",
+      },
+    }),
+  );
+
+  const remainingNews = await listNews(false);
+  const reordered = remainingNews
+    .filter((item) => item.id !== id)
+    .map((item, index) => ({
+      ...item,
+      displayOrder: index + 1,
+      updatedAt: new Date().toISOString(),
+    }));
+
+  if (reordered.length) {
+    await reorderNews({
+      items: reordered.map((item) => ({ id: item.id, displayOrder: item.displayOrder })),
+    });
+  }
+};
+
+const chunk = <T,>(items: T[], size: number) => {
+  const chunks: T[][] = [];
+  for (let index = 0; index < items.length; index += size) {
+    chunks.push(items.slice(index, index + size));
+  }
+  return chunks;
+};
+
+const reorderExpenses = async (input: ReorderChurchExpensesInput) => {
+  if (!Array.isArray(input.items) || !input.items.length) {
+    throw Object.assign(new Error("items must contain at least one expense."), { statusCode: 400 });
+  }
+
+  const invalidItem = input.items.find(
+    (item) =>
+      !item ||
+      typeof item.id !== "string" ||
+      !item.id.trim() ||
+      typeof item.displayOrder !== "number" ||
+      !Number.isFinite(item.displayOrder),
+  );
+  if (invalidItem) {
+    throw Object.assign(new Error("Each order item must include a valid id and displayOrder."), { statusCode: 400 });
+  }
+
+  const result = await documentClient.send(
+    new BatchGetCommand({
+      RequestItems: {
+        [tableName]: {
+          Keys: input.items.map((item) => ({
+            PK: expensePk(item.id),
+            SK: "EXPENSE",
+          })),
+        },
+      },
+    }),
+  );
+
+  const existingItems = (result.Responses?.[tableName] ?? []) as ExpenseItem[];
+  if (existingItems.length !== input.items.length) {
+    throw Object.assign(new Error("One or more expenses could not be found."), { statusCode: 404 });
+  }
+
+  const existingMap = new Map(existingItems.map((item) => [item.id, item]));
+  const now = new Date().toISOString();
+
+  const updateRequests = input.items.map((item) => {
+    const existing = existingMap.get(item.id);
+    if (!existing) {
+      throw Object.assign(new Error("Expense not found."), { statusCode: 404 });
+    }
+
+    return {
+      Update: {
+        TableName: tableName,
+        Key: {
+          PK: existing.PK,
+          SK: existing.SK,
+        },
+        UpdateExpression: "SET displayOrder = :displayOrder, updatedAt = :updatedAt, GSI1SK = :gsi1sk, GSI2SK = :gsi2sk",
+        ExpressionAttributeValues: {
+          ":displayOrder": item.displayOrder,
+          ":updatedAt": now,
+          ":gsi1sk": `${padDisplayOrder(item.displayOrder)}#${item.id}`,
+          ":gsi2sk": `${padDisplayOrder(item.displayOrder)}#${item.id}`,
+        },
+      },
+    };
+  });
+
+  for (const requestChunk of chunk(updateRequests, 25)) {
+    await documentClient.send(
+      new TransactWriteCommand({
+        TransactItems: requestChunk,
+      }),
+    );
+  }
+
+  return listExpenses(false);
+};
+
+const reorderNews = async (input: ReorderChurchNewsInput) => {
+  if (!Array.isArray(input.items) || !input.items.length) {
+    throw Object.assign(new Error("items must contain at least one news item."), { statusCode: 400 });
+  }
+
+  const invalidItem = input.items.find(
+    (item) =>
+      !item ||
+      typeof item.id !== "string" ||
+      !item.id.trim() ||
+      typeof item.displayOrder !== "number" ||
+      !Number.isFinite(item.displayOrder),
+  );
+  if (invalidItem) {
+    throw Object.assign(new Error("Each order item must include a valid id and displayOrder."), { statusCode: 400 });
+  }
+
+  const result = await documentClient.send(
+    new BatchGetCommand({
+      RequestItems: {
+        [tableName]: {
+          Keys: input.items.map((item) => ({
+            PK: newsPk(item.id),
+            SK: "NEWS",
+          })),
+        },
+      },
+    }),
+  );
+
+  const existingItems = (result.Responses?.[tableName] ?? []) as NewsItem[];
+  if (existingItems.length !== input.items.length) {
+    throw Object.assign(new Error("One or more news items could not be found."), { statusCode: 404 });
+  }
+
+  const existingMap = new Map(existingItems.map((item) => [item.id, item]));
+  const now = new Date().toISOString();
+
+  const updateRequests = input.items.map((item) => {
+    const existing = existingMap.get(item.id);
+    if (!existing) {
+      throw Object.assign(new Error("News item not found."), { statusCode: 404 });
+    }
+
+    return {
+      Update: {
+        TableName: tableName,
+        Key: {
+          PK: existing.PK,
+          SK: existing.SK,
+        },
+        UpdateExpression: "SET displayOrder = :displayOrder, updatedAt = :updatedAt, GSI1SK = :gsi1sk, GSI2SK = :gsi2sk",
+        ExpressionAttributeValues: {
+          ":displayOrder": item.displayOrder,
+          ":updatedAt": now,
+          ":gsi1sk": `${padDisplayOrder(item.displayOrder)}#${item.id}`,
+          ":gsi2sk": `${padDisplayOrder(item.displayOrder)}#${item.id}`,
+        },
+      },
+    };
+  });
+
+  for (const requestChunk of chunk(updateRequests, 25)) {
+    await documentClient.send(
+      new TransactWriteCommand({
+        TransactItems: requestChunk,
+      }),
+    );
+  }
+
+  return listNews(false);
+};
+
+export const handler: APIGatewayProxyHandlerV2 = async (rawEvent) => {
+  const event = rawEvent as APIGatewayProxyEventV2WithJWTAuthorizer;
+
+  try {
+    const method = event.requestContext.http.method;
+    const path = event.rawPath;
+    const context = getRequestContext(event);
+
+    if (method === "GET" && path === "/expenses") {
+      const items = await listExpenses(true);
+      return jsonResponse(200, {
+        items,
+        generatedAt: new Date().toISOString(),
+      });
+    }
+
+    if (method === "GET" && path === "/news") {
+      const items = await listNews(true);
+      return jsonResponse(200, {
+        items,
+        generatedAt: new Date().toISOString(),
+      });
+    }
+
+    if (method === "GET" && path === "/dashboard") {
+      const [projects, news, settings] = await Promise.all([
+        listExpenses(true),
+        listNews(true),
+        getSettings(),
+      ]);
+
+      return jsonResponse(200, {
+        projects,
+        news,
+        settings,
+        serverTime: new Date().toISOString(),
+      });
+    }
+
+    if (method === "GET" && path === "/settings") {
+      return jsonResponse(200, {
+        settings: await getSettings(),
+      });
+    }
+
+    if (method === "GET" && path === "/admin/expenses") {
+      requireAdmin(context);
+      return jsonResponse(200, {
+        items: await listExpenses(false),
+        generatedAt: new Date().toISOString(),
+      });
+    }
+
+    if (method === "GET" && path === "/admin/news") {
+      requireAdmin(context);
+      return jsonResponse(200, {
+        items: await listNews(false),
+        generatedAt: new Date().toISOString(),
+      });
+    }
+
+    if (method === "POST" && path === "/expenses") {
+      requireAdmin(context);
+      const input = validateExpenseInput(parseBody<Record<string, unknown>>(event));
+      return jsonResponse(201, await createExpense(input));
+    }
+
+    const approveExpenseMatch = path.match(/^\/expenses\/([^/]+)\/approve$/);
+    if (approveExpenseMatch && method === "PUT") {
+      requireAdmin(context);
+      return jsonResponse(200, {
+        item: await approveExpense(approveExpenseMatch[1] ?? ""),
+      });
+    }
+
+    if (method === "POST" && path === "/news") {
+      requireAdmin(context);
+      const input = validateNewsInput(parseBody<Record<string, unknown>>(event));
+      return jsonResponse(201, await createNews(input));
+    }
+
+    const approveNewsMatch = path.match(/^\/news\/([^/]+)\/approve$/);
+    if (approveNewsMatch && method === "PUT") {
+      requireAdmin(context);
+      return jsonResponse(200, {
+        item: await approveNews(approveNewsMatch[1] ?? ""),
+      });
+    }
+
+    if (method === "PUT" && path === "/expenses/order") {
+      requireAdmin(context);
+      const input = parseBody<ReorderChurchExpensesInput>(event);
+      return jsonResponse(200, {
+        items: await reorderExpenses(input),
+        generatedAt: new Date().toISOString(),
+      });
+    }
+
+    if (method === "PUT" && path === "/news/order") {
+      requireAdmin(context);
+      const input = parseBody<ReorderChurchNewsInput>(event);
+      return jsonResponse(200, {
+        items: await reorderNews(input),
+        generatedAt: new Date().toISOString(),
+      });
+    }
+
+    if (method === "PUT" && path === "/admin/settings") {
+      requireAdmin(context);
+      const input = validateSettingsInput(parseBody<Record<string, unknown>>(event));
+      return jsonResponse(200, {
+        settings: await saveSettings(input),
+      });
+    }
+
+    const expenseIdMatch = path.match(/^\/expenses\/([^/]+)$/);
+    if (expenseIdMatch) {
+      requireAdmin(context);
+      const expenseId = expenseIdMatch[1] ?? "";
+
+      if (method === "GET") {
+        const expense = await getExpense(expenseId);
+        if (!expense) {
+          return jsonResponse(404, { message: "Expense not found." });
+        }
+
+        return jsonResponse(200, toExpense(expense));
+      }
+
+      if (method === "PUT") {
+        const input = validateExpenseInput(parseBody<Record<string, unknown>>(event));
+        return jsonResponse(200, await updateExpense(expenseId, input));
+      }
+
+      if (method === "DELETE") {
+        await deleteExpense(expenseId);
+        return jsonResponse(200, { success: true });
+      }
+    }
+
+    const newsIdMatch = path.match(/^\/news\/([^/]+)$/);
+    if (newsIdMatch) {
+      requireAdmin(context);
+      const newsId = newsIdMatch[1] ?? "";
+
+      if (method === "GET") {
+        const news = await getNews(newsId);
+        if (!news) {
+          return jsonResponse(404, { message: "News item not found." });
+        }
+
+        return jsonResponse(200, toNews(news));
+      }
+
+      if (method === "PUT") {
+        const input = validateNewsInput(parseBody<Record<string, unknown>>(event));
+        return jsonResponse(200, await updateNews(newsId, input));
+      }
+
+      if (method === "DELETE") {
+        await deleteNews(newsId);
+        return jsonResponse(200, { success: true });
+      }
+    }
+
+    return jsonResponse(404, { message: "Route not found." });
+  } catch (error) {
+    const statusCode =
+      typeof error === "object" &&
+      error !== null &&
+      "statusCode" in error &&
+      typeof (error as { statusCode?: unknown }).statusCode === "number"
+        ? (error as { statusCode: number }).statusCode
+        : 500;
+
+    const message = error instanceof Error ? error.message : "Unexpected server error.";
+    return jsonResponse(statusCode, { message });
+  }
+};
