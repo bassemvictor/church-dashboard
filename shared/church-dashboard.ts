@@ -22,7 +22,6 @@ export const churchNewsCategories = [
   "REGISTRATION",
   "SERVICE",
   "YOUTH",
-  "LITURGY",
 ] as const;
 
 export type ChurchExpenseCategory = typeof churchExpenseCategories[number];
@@ -61,6 +60,8 @@ export type DashboardSettings = {
     churchName: string;
     showClock: boolean;
     showDate: boolean;
+    showExpensesPage: boolean;
+    showNewsPage: boolean;
     refreshIntervalSeconds: number;
     mainViewRotationIntervalSeconds: number;
   };
@@ -76,6 +77,7 @@ export type DashboardSettings = {
   news: {
     dashboardTitle: string;
     itemsPerPage: number;
+    upcomingLiturgiesCount: number;
   };
 };
 
@@ -98,6 +100,14 @@ export type ChurchNews = {
   updatedAt: string;
 };
 
+export type ChurchLiturgy = {
+  id: string;
+  date: string;
+  description?: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type ExpenseListResponse = {
   items: ChurchExpense[];
   generatedAt: string;
@@ -108,6 +118,11 @@ export type NewsListResponse = {
   generatedAt: string;
 };
 
+export type LiturgyListResponse = {
+  items: ChurchLiturgy[];
+  generatedAt: string;
+};
+
 export type DashboardSettingsResponse = {
   settings: DashboardSettings;
 };
@@ -115,6 +130,7 @@ export type DashboardSettingsResponse = {
 export type PublicDashboardResponse = {
   projects: ChurchExpense[];
   news: ChurchNews[];
+  liturgies: ChurchLiturgy[];
   settings: DashboardSettings;
   serverTime: string;
 };
@@ -159,6 +175,13 @@ export type CreateChurchNewsInput = {
 
 export type UpdateChurchNewsInput = CreateChurchNewsInput;
 
+export type CreateChurchLiturgyInput = {
+  date: string;
+  description?: string;
+};
+
+export type UpdateChurchLiturgyInput = CreateChurchLiturgyInput;
+
 export type ReorderChurchExpensesInput = {
   items: Array<{
     id: string;
@@ -198,6 +221,8 @@ export const defaultDashboardSettings: DashboardSettings = {
     churchName: "St. Mark Coptic Orthodox Church",
     showClock: true,
     showDate: true,
+    showExpensesPage: true,
+    showNewsPage: true,
     refreshIntervalSeconds: 300,
     mainViewRotationIntervalSeconds: 30,
   },
@@ -214,6 +239,7 @@ export const defaultDashboardSettings: DashboardSettings = {
   news: {
     dashboardTitle: "CHURCH NEWS & ANNOUNCEMENTS",
     itemsPerPage: 4,
+    upcomingLiturgiesCount: 3,
   },
 };
 

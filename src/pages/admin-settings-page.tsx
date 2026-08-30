@@ -15,7 +15,7 @@ type SettingsSection = "common" | "expenses" | "news";
 const sectionOptions: Array<{ id: SettingsSection; label: string }> = [
   { id: "common", label: "Common" },
   { id: "expenses", label: "Projects & Expenses" },
-  { id: "news", label: "Church News" },
+  { id: "news", label: "Church News and Liturgies" },
 ];
 
 const sectionCopy: Record<
@@ -43,11 +43,11 @@ const sectionCopy: Record<
     errorMessage: "Unable to save projects & expenses settings right now.",
   },
   news: {
-    title: "Church News Settings",
-    description: "Configure the public announcements screen without affecting the projects view.",
-    saveLabel: "Save news settings",
-    successMessage: "Church news settings saved.",
-    errorMessage: "Unable to save church news settings right now.",
+    title: "Church News and Liturgies Settings",
+    description: "Configure the public announcements screen and how many upcoming liturgies appear beside it.",
+    saveLabel: "Save news and liturgies settings",
+    successMessage: "Church news and liturgies settings saved.",
+    errorMessage: "Unable to save church news and liturgies settings right now.",
   },
 };
 
@@ -116,7 +116,7 @@ export const AdminSettingsPage = () => {
 
       <div className="rounded-xl border border-[#dbe4f0] bg-white px-6 py-6 shadow-[0_18px_40px_rgba(16,33,61,0.06)]">
         <p className="text-xs font-semibold uppercase tracking-[0.28em] text-[#7a8eab]">Settings</p>
-        <h2 className="mt-2 text-3xl font-semibold text-[#112947]">Configure the public display, Projects & Expenses, and Church News.</h2>
+        <h2 className="mt-2 text-3xl font-semibold text-[#112947]">Configure the public display, Projects & Expenses, and Church News with Liturgies.</h2>
       </div>
 
       <div className="-mx-1 overflow-x-auto px-1">
@@ -231,6 +231,28 @@ export const AdminSettingsPage = () => {
                         })}
                     />
                     Show current date
+                  </label>
+                  <label className="flex items-center gap-3">
+                    <Checkbox
+                      checked={draft.common.showExpensesPage}
+                      onChange={(event) =>
+                        setDraft({
+                          ...draft,
+                          common: { ...draft.common, showExpensesPage: event.target.checked },
+                        })}
+                    />
+                    Show expenses page
+                  </label>
+                  <label className="flex items-center gap-3">
+                    <Checkbox
+                      checked={draft.common.showNewsPage}
+                      onChange={(event) =>
+                        setDraft({
+                          ...draft,
+                          common: { ...draft.common, showNewsPage: event.target.checked },
+                        })}
+                    />
+                    Show news page
                   </label>
                 </div>
               </CardContent>
@@ -374,9 +396,9 @@ export const AdminSettingsPage = () => {
             <Card className="rounded-xl border-[#dbe4f0] bg-white">
               <CardHeader>
                 <CardTitle>Display settings</CardTitle>
-                <CardDescription>How many announcements the public screen shows at one time.</CardDescription>
+                <CardDescription>How many announcements and upcoming liturgies the public screen shows.</CardDescription>
               </CardHeader>
-              <CardContent>
+              <CardContent className="grid gap-4 md:grid-cols-2">
                 <label className="max-w-[14rem] space-y-2">
                   <span className="text-sm font-medium text-[#112947]">Announcements per page</span>
                   <Input
@@ -390,6 +412,25 @@ export const AdminSettingsPage = () => {
                       })}
                   />
                   <p className="text-xs text-[#6a7f9a]">Maximum number of announcements shown on one screen.</p>
+                </label>
+
+                <label className="max-w-[18rem] space-y-2">
+                  <span className="text-sm font-medium text-[#112947]">Number of upcoming liturgies to display</span>
+                  <Input
+                    max={10}
+                    min={1}
+                    type="number"
+                    value={draft.news.upcomingLiturgiesCount}
+                    onChange={(event) =>
+                      setDraft({
+                        ...draft,
+                        news: {
+                          ...draft.news,
+                          upcomingLiturgiesCount: Math.max(1, Math.min(10, Number(event.target.value) || 3)),
+                        },
+                      })}
+                  />
+                  <p className="text-xs text-[#6a7f9a]">Choose between 1 and 10 upcoming liturgies. The default is 3.</p>
                 </label>
               </CardContent>
             </Card>

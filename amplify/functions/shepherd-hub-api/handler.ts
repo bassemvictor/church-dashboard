@@ -18,9 +18,11 @@ import {
   churchExpenseCategories,
   churchExpenseStatuses,
   churchStatusModes,
+  type ChurchLiturgy,
   type ChurchNews,
   type ChurchNewsApprovalStatus,
   type ChurchNewsCategory,
+  type CreateChurchLiturgyInput,
   defaultDashboardSettings,
   type CreateChurchNewsInput,
   type ChurchExpense,
@@ -86,12 +88,15 @@ type LegacyDashboardSettings = {
   eTransferText?: string;
   showClock?: boolean;
   showDate?: boolean;
+  showExpensesPage?: boolean;
+  showNewsPage?: boolean;
   refreshIntervalSeconds?: number;
   rotationIntervalSeconds?: number;
   mainViewRotationIntervalSeconds?: number;
   itemsPerPage?: number;
   newsDashboardTitle?: string;
   newsItemsPerPage?: number;
+  upcomingLiturgiesCount?: number;
   common?: Partial<DashboardSettings["common"]>;
   expenses?: Partial<DashboardSettings["expenses"]>;
   news?: Partial<DashboardSettings["news"]>;
@@ -112,6 +117,12 @@ type NewsItem = BaseItem & {
   active: boolean;
   priority?: number;
   displayOrder: number;
+};
+
+type LiturgyItem = BaseItem & {
+  id: string;
+  date: string;
+  description?: string;
 };
 
 type RequestContext = {
@@ -143,6 +154,7 @@ const jsonResponse = (statusCode: number, body: unknown) => ({
 const padDisplayOrder = (displayOrder: number) => displayOrder.toString().padStart(5, "0");
 const expensePk = (id: string) => `EXPENSE#${id}`;
 const newsPk = (id: string) => `NEWS#${id}`;
+const liturgyPk = (id: string) => `LITURGY#${id}`;
 const settingsPk = () => "SETTINGS#DASHBOARD";
 
 const normalizeGroups = (value: unknown): string[] => {
@@ -253,6 +265,23 @@ const parsePositiveNumber = (value: unknown, fieldName: string, minimum: number)
   return value;
 };
 
+const parseIntegerInRange = (value: unknown, fieldName: string, minimum: number, maximum: number) => {
+  if (
+    typeof value !== "number" ||
+    Number.isNaN(value) ||
+    !Number.isFinite(value) ||
+    !Number.isInteger(value) ||
+    value < minimum ||
+    value > maximum
+  ) {
+    throw Object.assign(new Error(`${fieldName} must be an integer between ${minimum} and ${maximum}.`), {
+      statusCode: 400,
+    });
+  }
+
+  return value;
+};
+
 const parseBoolean = (value: unknown, fieldName: string) => {
   if (typeof value !== "boolean") {
     throw Object.assign(new Error(`${fieldName} must be true or false.`), { statusCode: 400 });
@@ -326,6 +355,8 @@ const validateSettingsInput = (input: Record<string, unknown>): DashboardSetting
         churchName: parseRequiredString(common.churchName, "common.churchName"),
         showClock: parseBoolean(common.showClock, "common.showClock"),
         showDate: parseBoolean(common.showDate, "common.showDate"),
+        showExpensesPage: parseBoolean(common.showExpensesPage, "common.showExpensesPage"),
+        showNewsPage: parseBoolean(common.showNewsPage, "common.showNewsPage"),
         refreshIntervalSeconds: parsePositiveNumber(common.refreshIntervalSeconds, "common.refreshIntervalSeconds", 15),
         mainViewRotationIntervalSeconds: parsePositiveNumber(
           common.mainViewRotationIntervalSeconds,
@@ -345,6 +376,12 @@ const validateSettingsInput = (input: Record<string, unknown>): DashboardSetting
       news: {
         dashboardTitle: parseRequiredString(news.dashboardTitle, "news.dashboardTitle"),
         itemsPerPage: parsePositiveNumber(news.itemsPerPage, "news.itemsPerPage", 1),
+        upcomingLiturgiesCount: parseIntegerInRange(
+          news.upcomingLiturgiesCount ?? defaultDashboardSettings.news.upcomingLiturgiesCount,
+          "news.upcomingLiturgiesCount",
+          1,
+          10,
+        ),
       },
     };
   }
@@ -354,6 +391,11 @@ const validateSettingsInput = (input: Record<string, unknown>): DashboardSetting
       churchName: parseRequiredString(input.churchName, "churchName"),
       showClock: parseBoolean(input.showClock, "showClock"),
       showDate: parseBoolean(input.showDate, "showDate"),
+      showExpensesPage: parseBoolean(
+        input.showExpensesPage ?? defaultDashboardSettings.common.showExpensesPage,
+        "showExpensesPage",
+      ),
+      showNewsPage: parseBoolean(input.showNewsPage ?? defaultDashboardSettings.common.showNewsPage, "showNewsPage"),
       refreshIntervalSeconds: parsePositiveNumber(input.refreshIntervalSeconds, "refreshIntervalSeconds", 15),
       mainViewRotationIntervalSeconds: parsePositiveNumber(
         input.mainViewRotationIntervalSeconds ?? input.rotationIntervalSeconds,
@@ -380,6 +422,12 @@ const validateSettingsInput = (input: Record<string, unknown>): DashboardSetting
         "newsItemsPerPage",
         1,
       ),
+      upcomingLiturgiesCount: parseIntegerInRange(
+        input.upcomingLiturgiesCount ?? defaultDashboardSettings.news.upcomingLiturgiesCount,
+        "upcomingLiturgiesCount",
+        1,
+        10,
+      ),
     },
   };
 };
@@ -395,6 +443,14 @@ const sanitizeDashboardSettings = (settings?: Partial<DashboardSettings> | Legac
       churchName: typeof common.churchName === "string" ? common.churchName : legacy.churchName ?? defaultDashboardSettings.common.churchName,
       showClock: typeof common.showClock === "boolean" ? common.showClock : legacy.showClock ?? defaultDashboardSettings.common.showClock,
       showDate: typeof common.showDate === "boolean" ? common.showDate : legacy.showDate ?? defaultDashboardSettings.common.showDate,
+      showExpensesPage:
+        typeof common.showExpensesPage === "boolean"
+          ? common.showExpensesPage
+          : legacy.showExpensesPage ?? defaultDashboardSettings.common.showExpensesPage,
+      showNewsPage:
+        typeof common.showNewsPage === "boolean"
+          ? common.showNewsPage
+          : legacy.showNewsPage ?? defaultDashboardSettings.common.showNewsPage,
       refreshIntervalSeconds:
         typeof common.refreshIntervalSeconds === "number"
           ? common.refreshIntervalSeconds
@@ -443,6 +499,12 @@ const sanitizeDashboardSettings = (settings?: Partial<DashboardSettings> | Legac
         typeof news.itemsPerPage === "number"
           ? news.itemsPerPage
           : legacy.newsItemsPerPage ?? legacy.itemsPerPage ?? defaultDashboardSettings.news.itemsPerPage,
+      upcomingLiturgiesCount:
+        typeof news.upcomingLiturgiesCount === "number"
+          ? Math.max(1, Math.min(10, Math.floor(news.upcomingLiturgiesCount)))
+          : typeof legacy.upcomingLiturgiesCount === "number"
+            ? Math.max(1, Math.min(10, Math.floor(legacy.upcomingLiturgiesCount)))
+            : defaultDashboardSettings.news.upcomingLiturgiesCount,
     },
   };
 };
@@ -513,6 +575,23 @@ const toNewsItem = (news: ChurchNews): NewsItem => ({
   ...news,
 });
 
+const toLiturgy = (item: LiturgyItem): ChurchLiturgy => ({
+  id: item.id,
+  date: item.date,
+  description: item.description,
+  createdAt: item.createdAt,
+  updatedAt: item.updatedAt,
+});
+
+const toLiturgyItem = (liturgy: ChurchLiturgy): LiturgyItem => ({
+  PK: liturgyPk(liturgy.id),
+  SK: "LITURGY",
+  entityType: "ChurchLiturgy",
+  GSI1PK: "LITURGY",
+  GSI1SK: `${liturgy.date}#${liturgy.id}`,
+  ...liturgy,
+});
+
 const parseOptionalIsoDate = (value: unknown, fieldName: string) => {
   const parsed = parseOptionalString(value);
   if (!parsed) {
@@ -525,6 +604,20 @@ const parseOptionalIsoDate = (value: unknown, fieldName: string) => {
   }
 
   return normalized.toISOString();
+};
+
+const parseDateOnly = (value: unknown, fieldName: string) => {
+  const parsed = parseRequiredString(value, fieldName);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(parsed)) {
+    throw Object.assign(new Error(`${fieldName} must be a valid date in YYYY-MM-DD format.`), { statusCode: 400 });
+  }
+
+  const normalized = new Date(`${parsed}T00:00:00.000Z`);
+  if (Number.isNaN(normalized.getTime())) {
+    throw Object.assign(new Error(`${fieldName} must be a valid date.`), { statusCode: 400 });
+  }
+
+  return parsed;
 };
 
 const validateNewsInput = (input: Record<string, unknown>): CreateChurchNewsInput => {
@@ -558,6 +651,11 @@ const validateNewsInput = (input: Record<string, unknown>): CreateChurchNewsInpu
     priority: input.priority === undefined ? undefined : parseNumber(input.priority, "priority"),
   };
 };
+
+const validateLiturgyInput = (input: Record<string, unknown>): CreateChurchLiturgyInput => ({
+  date: parseDateOnly(input.date, "date"),
+  description: parseOptionalString(input.description),
+});
 
 const listExpenses = async (activeOnly: boolean, now = new Date()) => {
   const result = await documentClient.send(
@@ -612,6 +710,24 @@ const listNews = async (activeOnly: boolean, now = new Date()) => {
     .sort(activeOnly ? compareNews : (left, right) => left.displayOrder - right.displayOrder);
 };
 
+const listLiturgies = async () => {
+  const result = await documentClient.send(
+    new QueryCommand({
+      TableName: tableName,
+      IndexName: "GSI1",
+      KeyConditionExpression: "GSI1PK = :pk",
+      ExpressionAttributeValues: {
+        ":pk": "LITURGY",
+      },
+    }),
+  );
+
+  const items = (result.Items ?? []) as LiturgyItem[];
+  return items
+    .map(toLiturgy)
+    .sort((left, right) => left.date.localeCompare(right.date));
+};
+
 const getExpense = async (id: string) => {
   const result = await documentClient.send(
     new GetCommand({
@@ -638,6 +754,20 @@ const getNews = async (id: string) => {
   );
 
   return result.Item as NewsItem | undefined;
+};
+
+const getLiturgy = async (id: string) => {
+  const result = await documentClient.send(
+    new GetCommand({
+      TableName: tableName,
+      Key: {
+        PK: liturgyPk(id),
+        SK: "LITURGY",
+      },
+    }),
+  );
+
+  return result.Item as LiturgyItem | undefined;
 };
 
 const getSettings = async () => {
@@ -736,6 +866,26 @@ const createNews = async (input: CreateChurchNewsInput) => {
   );
 
   return news;
+};
+
+const createLiturgy = async (input: CreateChurchLiturgyInput) => {
+  const now = new Date().toISOString();
+  const liturgy: ChurchLiturgy = {
+    id: randomUUID(),
+    date: input.date,
+    description: input.description,
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  await documentClient.send(
+    new PutCommand({
+      TableName: tableName,
+      Item: toLiturgyItem(liturgy),
+    }),
+  );
+
+  return liturgy;
 };
 
 const updateExpense = async (id: string, input: CreateChurchExpenseInput) => {
@@ -856,6 +1006,30 @@ const approveNews = async (id: string) => {
   return news;
 };
 
+const updateLiturgy = async (id: string, input: CreateChurchLiturgyInput) => {
+  const existing = await getLiturgy(id);
+  if (!existing) {
+    throw Object.assign(new Error("Liturgy not found."), { statusCode: 404 });
+  }
+
+  const liturgy: ChurchLiturgy = {
+    id,
+    date: input.date,
+    description: input.description,
+    createdAt: existing.createdAt,
+    updatedAt: new Date().toISOString(),
+  };
+
+  await documentClient.send(
+    new PutCommand({
+      TableName: tableName,
+      Item: toLiturgyItem(liturgy),
+    }),
+  );
+
+  return liturgy;
+};
+
 const deleteExpense = async (id: string) => {
   const existing = await getExpense(id);
   if (!existing) {
@@ -918,6 +1092,23 @@ const deleteNews = async (id: string) => {
       items: reordered.map((item) => ({ id: item.id, displayOrder: item.displayOrder })),
     });
   }
+};
+
+const deleteLiturgy = async (id: string) => {
+  const existing = await getLiturgy(id);
+  if (!existing) {
+    throw Object.assign(new Error("Liturgy not found."), { statusCode: 404 });
+  }
+
+  await documentClient.send(
+    new DeleteCommand({
+      TableName: tableName,
+      Key: {
+        PK: liturgyPk(id),
+        SK: "LITURGY",
+      },
+    }),
+  );
 };
 
 const chunk = <T,>(items: T[], size: number) => {
@@ -1098,16 +1289,26 @@ export const handler: APIGatewayProxyHandlerV2 = async (rawEvent) => {
       });
     }
 
+    if (method === "GET" && path === "/liturgies") {
+      const items = await listLiturgies();
+      return jsonResponse(200, {
+        items,
+        generatedAt: new Date().toISOString(),
+      });
+    }
+
     if (method === "GET" && path === "/dashboard") {
-      const [projects, news, settings] = await Promise.all([
+      const [projects, news, liturgies, settings] = await Promise.all([
         listExpenses(true),
         listNews(true),
+        listLiturgies(),
         getSettings(),
       ]);
 
       return jsonResponse(200, {
         projects,
         news,
+        liturgies,
         settings,
         serverTime: new Date().toISOString(),
       });
@@ -1135,6 +1336,14 @@ export const handler: APIGatewayProxyHandlerV2 = async (rawEvent) => {
       });
     }
 
+    if (method === "GET" && path === "/admin/liturgies") {
+      requireAdmin(context);
+      return jsonResponse(200, {
+        items: await listLiturgies(),
+        generatedAt: new Date().toISOString(),
+      });
+    }
+
     if (method === "POST" && path === "/expenses") {
       requireAdmin(context);
       const input = validateExpenseInput(parseBody<Record<string, unknown>>(event));
@@ -1153,6 +1362,12 @@ export const handler: APIGatewayProxyHandlerV2 = async (rawEvent) => {
       requireAdmin(context);
       const input = validateNewsInput(parseBody<Record<string, unknown>>(event));
       return jsonResponse(201, await createNews(input));
+    }
+
+    if (method === "POST" && path === "/liturgies") {
+      requireAdmin(context);
+      const input = validateLiturgyInput(parseBody<Record<string, unknown>>(event));
+      return jsonResponse(201, await createLiturgy(input));
     }
 
     const approveNewsMatch = path.match(/^\/news\/([^/]+)\/approve$/);
@@ -1235,6 +1450,31 @@ export const handler: APIGatewayProxyHandlerV2 = async (rawEvent) => {
 
       if (method === "DELETE") {
         await deleteNews(newsId);
+        return jsonResponse(200, { success: true });
+      }
+    }
+
+    const liturgyIdMatch = path.match(/^\/liturgies\/([^/]+)$/);
+    if (liturgyIdMatch) {
+      requireAdmin(context);
+      const liturgyId = liturgyIdMatch[1] ?? "";
+
+      if (method === "GET") {
+        const liturgy = await getLiturgy(liturgyId);
+        if (!liturgy) {
+          return jsonResponse(404, { message: "Liturgy not found." });
+        }
+
+        return jsonResponse(200, toLiturgy(liturgy));
+      }
+
+      if (method === "PUT") {
+        const input = validateLiturgyInput(parseBody<Record<string, unknown>>(event));
+        return jsonResponse(200, await updateLiturgy(liturgyId, input));
+      }
+
+      if (method === "DELETE") {
+        await deleteLiturgy(liturgyId);
         return jsonResponse(200, { success: true });
       }
     }

@@ -23,20 +23,24 @@ import {
   getExpenseApprovalStatus,
   isExpenseVisible,
   isNewsVisible,
+  type ChurchLiturgy,
   type ApproveChurchExpenseResponse,
   type ChurchExpense,
   type ChurchExpenseCategory,
   type ChurchNews,
   type ApproveChurchNewsResponse,
   type ChurchNewsCategory,
+  type CreateChurchLiturgyInput,
   type ChurchExpenseStatus,
   type CreateChurchNewsInput,
   type CreateChurchExpenseInput,
   type DashboardSettings,
   type DashboardSettingsResponse,
   type ExpenseListResponse,
+  type LiturgyListResponse,
   type NewsListResponse,
   type PublicDashboardResponse,
+  type UpdateChurchLiturgyInput,
   type ReorderChurchNewsInput,
   type ReorderChurchExpensesInput,
   type UpdateChurchNewsInput,
@@ -154,7 +158,6 @@ export const newsCategoryLabels: Record<ChurchNewsCategory, string> = {
   REGISTRATION: "Registration",
   SERVICE: "Service",
   YOUTH: "Youth",
-  LITURGY: "Liturgy",
 };
 
 export const storagePathPrefix = "public/expenses";
@@ -281,6 +284,15 @@ export const useAdminNews = () =>
     },
   });
 
+export const useAdminLiturgies = () =>
+  useQuery({
+    queryKey: ["admin-liturgies"],
+    queryFn: async () => {
+      const response = await api.get<LiturgyListResponse>("/admin/liturgies");
+      return response.items;
+    },
+  });
+
 export const useDashboardSettings = () =>
   useQuery({
     queryKey: ["dashboard-settings"],
@@ -397,6 +409,40 @@ export const useDeleteNews = () => {
   });
 };
 
+export const useSaveLiturgy = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (input: { id?: string; values: CreateChurchLiturgyInput | UpdateChurchLiturgyInput }) => {
+      if (input.id) {
+        return api.put<ChurchLiturgy>(`/liturgies/${input.id}`, input.values);
+      }
+
+      return api.post<ChurchLiturgy>("/liturgies", input.values);
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["admin-liturgies"] }),
+        queryClient.invalidateQueries({ queryKey: ["public-dashboard"] }),
+      ]);
+    },
+  });
+};
+
+export const useDeleteLiturgy = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (liturgyId: string) => api.delete<{ success: true }>(`/liturgies/${liturgyId}`),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["admin-liturgies"] }),
+        queryClient.invalidateQueries({ queryKey: ["public-dashboard"] }),
+      ]);
+    },
+  });
+};
+
 export const useReorderExpenses = () => {
   const queryClient = useQueryClient();
 
@@ -452,6 +498,14 @@ export const getSanitizedRefreshIntervalSeconds = (value?: number) =>
 
 export const getSanitizedItemsPerPage = (value?: number) =>
   isValidPositiveNumber(value ?? Number.NaN, 1) ? Math.floor(value as number) : defaultDashboardSettings.expenses.itemsPerPage;
+
+export const getSanitizedUpcomingLiturgiesCount = (value?: number) => {
+  if (!Number.isFinite(value ?? Number.NaN)) {
+    return defaultDashboardSettings.news.upcomingLiturgiesCount;
+  }
+
+  return Math.max(1, Math.min(10, Math.floor(value as number)));
+};
 
 export const churchNewsCategoryChoices = churchNewsCategories;
 export { getExpenseApprovalStatus, isExpenseVisible, isNewsVisible };

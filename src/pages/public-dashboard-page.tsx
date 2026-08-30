@@ -16,10 +16,12 @@ import {
   getSanitizedItemsPerPage,
   getSanitizedRefreshIntervalSeconds,
   getSanitizedRotationIntervalSeconds,
+  getSanitizedUpcomingLiturgiesCount,
   newsCategoryLabels,
   usePublicDashboard,
 } from "../lib/church-dashboard";
 import {
+  type ChurchLiturgy,
   defaultDashboardSettings,
   type ChurchExpense,
   type ChurchNews,
@@ -28,19 +30,44 @@ import {
 
 type DashboardView = "projects" | "news";
 
+const getEnabledDashboardViews = (settings: typeof defaultDashboardSettings): DashboardView[] => {
+  const views: DashboardView[] = [];
+
+  if (settings.common.showExpensesPage) {
+    views.push("projects");
+  }
+
+  if (settings.common.showNewsPage) {
+    views.push("news");
+  }
+
+  return views;
+};
+
+const getSafeDashboardView = (activeView: DashboardView, enabledViews: DashboardView[]) =>
+  enabledViews.includes(activeView) ? activeView : (enabledViews[0] ?? null);
+
 const getNextDashboardViewState = ({
   activeView,
   expensePageIndex,
   newsPageIndex,
   projectPageCount,
   newsPageCount,
+  enabledViews,
 }: {
   activeView: DashboardView;
   expensePageIndex: number;
   newsPageIndex: number;
   projectPageCount: number;
   newsPageCount: number;
+  enabledViews: DashboardView[];
 }) => {
+  const currentIndex = enabledViews.indexOf(activeView);
+
+  if (currentIndex === -1) {
+    return null;
+  }
+
   if (activeView === "projects") {
     if (expensePageIndex < projectPageCount - 1) {
       return {
@@ -50,8 +77,9 @@ const getNextDashboardViewState = ({
       };
     }
 
+    const nextView = enabledViews[(currentIndex + 1) % enabledViews.length] ?? "projects";
     return {
-      activeView: "news" as const,
+      activeView: nextView,
       expensePageIndex: 0,
       newsPageIndex: 0,
     };
@@ -65,8 +93,9 @@ const getNextDashboardViewState = ({
     };
   }
 
+  const nextView = enabledViews[(currentIndex + 1) % enabledViews.length] ?? "news";
   return {
-    activeView: "projects" as const,
+    activeView: nextView,
     expensePageIndex: 0,
     newsPageIndex: 0,
   };
@@ -150,36 +179,24 @@ const formatExpenseDate = (value?: string) => {
   }).format(date);
 };
 
-const formatGlanceTime = (value: string) =>
-  new Intl.DateTimeFormat("en-CA", {
-    hour: "numeric",
-    minute: "2-digit",
-  }).format(new Date(value));
-
-const formatWeekRangeDate = (value: Date) =>
+const formatLiturgyDate = (value: string) =>
   new Intl.DateTimeFormat("en-CA", {
     month: "short",
     day: "numeric",
-  }).format(value);
+    year: "numeric",
+  }).format(new Date(`${value}T12:00:00`));
 
-const getStartOfWeek = (value: Date) => {
-  const date = new Date(value);
-  date.setHours(0, 0, 0, 0);
-  const day = date.getDay();
-  const offset = day === 0 ? -6 : 1 - day;
-  date.setDate(date.getDate() + offset);
-  return date;
-};
-
-const getEndOfWeek = (value: Date) => {
-  const date = getStartOfWeek(value);
-  date.setDate(date.getDate() + 7);
-  return date;
+const getLocalDateKey = (value: Date) => {
+  const year = value.getFullYear();
+  const month = `${value.getMonth() + 1}`.padStart(2, "0");
+  const day = `${value.getDate()}`.padStart(2, "0");
+  return `${year}-${month}-${day}`;
 };
 
 const buildEmptyPayload = (): PublicDashboardResponse => ({
   projects: [],
   news: [],
+  liturgies: [],
   settings: defaultDashboardSettings,
   serverTime: new Date().toISOString(),
 });
@@ -400,12 +417,10 @@ const ProjectsView = ({ items }: { items: ChurchExpense[] }) => (
 
 const NewsView = ({
   items,
-  thisWeekItems,
-  weekRangeLabel,
+  liturgies,
 }: {
   items: ChurchNews[];
-  thisWeekItems: ChurchNews[];
-  weekRangeLabel: string;
+  liturgies: ChurchLiturgy[];
 }) => (
   <div className="grid gap-4 lg:grid-cols-[minmax(0,1.55fr)_minmax(320px,0.85fr)]">
     <div className="space-y-3">
@@ -454,24 +469,18 @@ const NewsView = ({
     </div>
 
     <aside className="rounded-[1.6rem] border border-[#eadfcf] bg-[#fff9ef] p-4 shadow-[0_14px_36px_rgba(31,42,68,0.04)]">
-      <p className="text-sm font-semibold uppercase tracking-[0.24em] text-[#8d6a2f]">Divine Liturgies This Week</p>
-      <p className="mt-2 text-xs font-semibold uppercase tracking-[0.18em] text-[#8d6a2f]">{weekRangeLabel}</p>
-      {thisWeekItems.length ? (
+      <p className="text-sm font-semibold uppercase tracking-[0.24em] text-[#8d6a2f]">Upcoming Divine Liturgies</p>
+      {liturgies.length ? (
         <div className="mt-4 space-y-4">
-          {thisWeekItems.map((item) => (
+          {liturgies.map((item) => (
             <div className="border-b border-[#eadfcf] pb-4 last:border-b-0 last:pb-0" key={item.id}>
-              <p className="text-lg font-semibold text-[#112947]">{item.title}</p>
-              {item.eventDate ? (
-                <p className="mt-1 text-sm font-semibold uppercase tracking-[0.18em] text-[#8d6a2f]">
-                  {formatGlanceTime(item.eventDate)}
-                </p>
-              ) : null}
-              {item.location ? <p className="mt-1 text-sm text-[#556b86]">{item.location}</p> : null}
+              <p className="text-lg font-semibold text-[#112947]">{formatLiturgyDate(item.date)}</p>
+              {item.description ? <p className="mt-1 text-sm text-[#556b86]">{item.description}</p> : null}
             </div>
           ))}
         </div>
       ) : (
-        <p className="mt-4 text-sm text-[#556b86]">There are no Divine Liturgies scheduled for this week.</p>
+        <p className="mt-4 text-sm text-[#556b86]">There are no upcoming Divine Liturgies scheduled right now.</p>
       )}
     </aside>
   </div>
@@ -536,20 +545,36 @@ export const PublicDashboardPage = () => {
   const [rotationCycleSeed, setRotationCycleSeed] = useState(0);
   const payload = dashboardQuery.data ?? buildEmptyPayload();
   const settings = payload.settings ?? defaultDashboardSettings;
+  const enabledViews = useMemo(() => getEnabledDashboardViews(settings), [settings]);
   const visibleProjects = useMemo(() => payload.projects.filter((item) => isExpenseVisible(item, now)), [now, payload.projects]);
   const visibleNews = useMemo(() => payload.news.filter((item) => isNewsVisible(item, now)), [now, payload.news]);
+  const visibleAnnouncementNews = visibleNews;
   const showAdminShortcut = status === "authenticated" && !!user && isAdminUser(user.groups);
   const projectItemsPerPage = getSanitizedItemsPerPage(settings.expenses.itemsPerPage);
   const newsItemsPerPage = getSanitizedItemsPerPage(settings.news.itemsPerPage);
+  const upcomingLiturgiesCount = getSanitizedUpcomingLiturgiesCount(settings.news.upcomingLiturgiesCount);
   const rotationIntervalSeconds = getSanitizedRotationIntervalSeconds(settings.common.mainViewRotationIntervalSeconds);
   const refreshIntervalSeconds = getSanitizedRefreshIntervalSeconds(settings.common.refreshIntervalSeconds);
   const projectPageCount = Math.max(1, Math.ceil(visibleProjects.length / projectItemsPerPage));
-  const newsPageCount = Math.max(1, Math.ceil(visibleNews.length / newsItemsPerPage));
+  const newsPageCount = Math.max(1, Math.ceil(visibleAnnouncementNews.length / newsItemsPerPage));
+  const currentView = getSafeDashboardView(activeView, enabledViews);
+  const todayDateKey = getLocalDateKey(now);
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(new Date()), 1000);
     return () => window.clearInterval(timer);
   }, []);
+
+  useEffect(() => {
+    if (!currentView) {
+      return;
+    }
+
+    if (currentView !== activeView) {
+      setActiveView(currentView);
+      setRotationProgress(0);
+    }
+  }, [activeView, currentView]);
 
   useEffect(() => {
     setExpensePageIndex((current) => Math.min(current, projectPageCount - 1));
@@ -560,7 +585,7 @@ export const PublicDashboardPage = () => {
   }, [newsPageCount]);
 
   useEffect(() => {
-    if (dashboardQuery.isLoading || !dashboardQuery.data) {
+    if (dashboardQuery.isLoading || !dashboardQuery.data || !currentView) {
       setRotationProgress(0);
       return;
     }
@@ -580,12 +605,19 @@ export const PublicDashboardPage = () => {
 
       transitionTimer = window.setTimeout(() => {
         const nextState = getNextDashboardViewState({
-          activeView,
+          activeView: currentView,
           expensePageIndex,
           newsPageIndex,
           projectPageCount,
           newsPageCount,
+          enabledViews,
         });
+
+        if (!nextState) {
+          setIsVisible(true);
+          setRotationProgress(0);
+          return;
+        }
 
         setActiveView(nextState.activeView);
         setExpensePageIndex(nextState.expensePageIndex);
@@ -610,11 +642,17 @@ export const PublicDashboardPage = () => {
     newsPageIndex,
     newsPageCount,
     projectPageCount,
+    enabledViews,
+    currentView,
     rotationCycleSeed,
     rotationIntervalSeconds,
   ]);
 
   const handleViewSelect = (view: DashboardView) => {
+    if (!enabledViews.includes(view)) {
+      return;
+    }
+
     setIsVisible(false);
 
     window.setTimeout(() => {
@@ -640,37 +678,24 @@ export const PublicDashboardPage = () => {
   );
 
   const pagedNews = useMemo(
-    () => visibleNews.slice(newsPageIndex * newsItemsPerPage, newsPageIndex * newsItemsPerPage + newsItemsPerPage),
-    [newsItemsPerPage, newsPageIndex, visibleNews],
+    () =>
+      visibleAnnouncementNews.slice(
+        newsPageIndex * newsItemsPerPage,
+        newsPageIndex * newsItemsPerPage + newsItemsPerPage,
+      ),
+    [newsItemsPerPage, newsPageIndex, visibleAnnouncementNews],
   );
 
-  const thisWeekAtGlance = useMemo(() => {
-    const startOfWeek = getStartOfWeek(now);
-    const endOfWeek = getEndOfWeek(now);
+  const upcomingLiturgies = useMemo(
+    () =>
+      payload.liturgies
+        .filter((item) => item.date >= todayDateKey)
+        .sort((left, right) => left.date.localeCompare(right.date))
+        .slice(0, upcomingLiturgiesCount),
+    [payload.liturgies, todayDateKey, upcomingLiturgiesCount],
+  );
 
-    return visibleNews
-      .filter((item) => {
-        if (item.category !== "LITURGY" || !item.eventDate) {
-          return false;
-        }
-
-        const eventTime = new Date(item.eventDate).getTime();
-        return eventTime >= startOfWeek.getTime() && eventTime < endOfWeek.getTime();
-      })
-      .sort((left, right) => new Date(left.eventDate ?? "").getTime() - new Date(right.eventDate ?? "").getTime())
-      .slice(0, 4);
-  }, [now, visibleNews]);
-
-  const weekRangeLabel = useMemo(() => {
-    const startOfWeek = getStartOfWeek(now);
-    const endOfWeek = getEndOfWeek(now);
-    const endOfSunday = new Date(endOfWeek);
-    endOfSunday.setDate(endOfSunday.getDate() - 1);
-
-    return `Monday, ${formatWeekRangeDate(startOfWeek)} to Sunday, ${formatWeekRangeDate(endOfSunday)}`;
-  }, [now]);
-
-  const currentTitle = activeView === "projects" ? settings.expenses.dashboardTitle : settings.news.dashboardTitle;
+  const currentTitle = currentView === "projects" ? settings.expenses.dashboardTitle : settings.news.dashboardTitle;
   const projectsPageLabel = `${expensePageIndex + 1} / ${projectPageCount}`;
   const newsPageLabel = `${newsPageIndex + 1} / ${newsPageCount}`;
 
@@ -715,49 +740,69 @@ export const PublicDashboardPage = () => {
         <section className="mt-3 flex min-h-0 flex-1 flex-col rounded-[2rem] border border-[#e6d7bb] bg-white/78 px-3 py-4 shadow-[0_30px_70px_rgba(31,42,68,0.08)] lg:px-5">
           <div className="relative mb-3 flex flex-col items-center gap-3 md:min-h-[88px] md:justify-center">
             <div className="text-center">
-              <p className="text-2xl font-semibold tracking-[0.05em] text-[#112947] md:text-4xl">{currentTitle}</p>
+              <p className="text-2xl font-semibold tracking-[0.05em] text-[#112947] md:text-4xl">
+                {currentView ? currentTitle : "PUBLIC DASHBOARD"}
+              </p>
             </div>
 
             <div className="flex min-w-[260px] items-center justify-center gap-3 md:absolute md:right-0 md:top-1/2 md:-translate-y-1/2 md:justify-end">
-              <div className="flex items-center justify-center gap-2 md:justify-end">
-                <button
-                  className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[0.64rem] font-semibold uppercase tracking-[0.14em] transition-colors ${
-                    activeView === "projects" ? "bg-[#112947] text-white" : "bg-[#f3ead8] text-[#8d6a2f] hover:bg-[#eadcc3]"
-                  }`}
-                  onClick={() => handleViewSelect("projects")}
-                  type="button"
-                >
-                  Projects
-                  {activeView === "projects" ? (
-                    <span className="rounded-full bg-white/14 px-1.5 py-0.5 text-[0.56rem] tracking-[0.1em] text-white">
-                      {projectsPageLabel}
-                    </span>
-                  ) : null}
-                </button>
-                <button
-                  className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[0.64rem] font-semibold uppercase tracking-[0.14em] transition-colors ${
-                    activeView === "news" ? "bg-[#112947] text-white" : "bg-[#f3ead8] text-[#8d6a2f] hover:bg-[#eadcc3]"
-                  }`}
-                  onClick={() => handleViewSelect("news")}
-                  type="button"
-                >
-                  News
-                  {activeView === "news" ? (
-                    <span className="rounded-full bg-white/14 px-1.5 py-0.5 text-[0.56rem] tracking-[0.1em] text-white">
-                      {newsPageLabel}
-                    </span>
-                  ) : null}
-                </button>
-              </div>
-              <RotationClock progress={rotationProgress} />
+              {enabledViews.length ? (
+                <>
+                  <div className="flex items-center justify-center gap-2 md:justify-end">
+                    {enabledViews.includes("projects") ? (
+                      <button
+                        className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[0.64rem] font-semibold uppercase tracking-[0.14em] transition-colors ${
+                          currentView === "projects" ? "bg-[#112947] text-white" : "bg-[#f3ead8] text-[#8d6a2f] hover:bg-[#eadcc3]"
+                        }`}
+                        onClick={() => handleViewSelect("projects")}
+                        type="button"
+                      >
+                        Projects
+                        {currentView === "projects" ? (
+                          <span className="rounded-full bg-white/14 px-1.5 py-0.5 text-[0.56rem] tracking-[0.1em] text-white">
+                            {projectsPageLabel}
+                          </span>
+                        ) : null}
+                      </button>
+                    ) : null}
+                    {enabledViews.includes("news") ? (
+                      <button
+                        className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[0.64rem] font-semibold uppercase tracking-[0.14em] transition-colors ${
+                          currentView === "news" ? "bg-[#112947] text-white" : "bg-[#f3ead8] text-[#8d6a2f] hover:bg-[#eadcc3]"
+                        }`}
+                        onClick={() => handleViewSelect("news")}
+                        type="button"
+                      >
+                        News
+                        {currentView === "news" ? (
+                          <span className="rounded-full bg-white/14 px-1.5 py-0.5 text-[0.56rem] tracking-[0.1em] text-white">
+                            {newsPageLabel}
+                          </span>
+                        ) : null}
+                      </button>
+                    ) : null}
+                  </div>
+                  <RotationClock progress={rotationProgress} />
+                </>
+              ) : null}
             </div>
           </div>
 
           <div className={`relative min-h-0 flex-1 overflow-hidden transition-opacity duration-300 ${isVisible ? "opacity-100" : "opacity-0"}`}>
-            {activeView === "projects" ? (
+            {!currentView ? (
+              <div className="flex h-full items-center justify-center px-6 text-center">
+                <div className="max-w-2xl rounded-[2rem] border border-dashed border-[#d7c7a8] bg-[#fff8ea] px-8 py-10 shadow-[0_18px_40px_rgba(141,106,47,0.08)]">
+                  <p className="text-sm font-semibold uppercase tracking-[0.24em] text-[#8d6a2f]">Nothing enabled</p>
+                  <p className="mt-4 text-2xl font-semibold text-[#112947]">The public dashboard is currently hidden.</p>
+                  <p className="mt-3 text-sm text-[#556b86]">
+                    Turn on the Projects & Expenses page or the Church News page in settings to show content here.
+                  </p>
+                </div>
+              </div>
+            ) : currentView === "projects" ? (
               <ProjectsView items={pagedProjects} />
             ) : (
-              <NewsView items={pagedNews} thisWeekItems={thisWeekAtGlance} weekRangeLabel={weekRangeLabel} />
+              <NewsView items={pagedNews} liturgies={upcomingLiturgies} />
             )}
           </div>
 
