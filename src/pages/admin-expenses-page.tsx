@@ -188,7 +188,7 @@ const ExpenseEditorDialog = ({
           description: draft.description?.trim() || undefined,
           paymentDate: draft.paymentDate?.trim() || undefined,
           visibleFrom: normalizeDateValue(draft.visibleFrom),
-          visibleUntil: normalizeDateValue(draft.visibleUntil),
+          visibleUntil: normalizeDateValue(draft.visibleUntil, "end"),
           requiresApproval: draft.requiresApproval,
           customStatusText: draft.customStatusText?.trim() || undefined,
           customSubText: draft.customSubText?.trim() || undefined,

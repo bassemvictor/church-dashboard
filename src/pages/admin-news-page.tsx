@@ -134,7 +134,7 @@ const NewsEditorDialog = ({
           category: draft.category,
           eventDate: normalizeDateValue(draft.eventDate),
           startDate: normalizeDateValue(draft.startDate),
-          endDate: normalizeDateValue(draft.endDate),
+          endDate: normalizeDateValue(draft.endDate, "end"),
           requiresApproval: draft.requiresApproval,
           location: normalizeOptionalValue(draft.location),
           icon: normalizeOptionalValue(draft.icon),

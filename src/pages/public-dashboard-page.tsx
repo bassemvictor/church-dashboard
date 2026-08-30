@@ -1,4 +1,4 @@
-import { CheckCircle2, CircleAlert, ExternalLink } from "lucide-react";
+import { CheckCircle2, CircleAlert, Settings } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 
@@ -179,6 +179,52 @@ const formatExpenseDate = (value?: string) => {
   }).format(date);
 };
 
+const getExpenseDueMeta = (value: string | undefined, todayDateKey: string) => {
+  if (!value) {
+    return null;
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+
+  const dueDateKey = getLocalDateKey(date);
+  const today = new Date(`${todayDateKey}T12:00:00`);
+  const dueDate = new Date(`${dueDateKey}T12:00:00`);
+  const dayDifference = Math.round((dueDate.getTime() - today.getTime()) / 86_400_000);
+
+  if (dayDifference < 0) {
+    return {
+      accentClassName: "border-rose-200 bg-rose-50 text-rose-700",
+      label: "Past due",
+      value: formatExpenseDate(value),
+    };
+  }
+
+  if (dayDifference === 0) {
+    return {
+      accentClassName: "border-amber-200 bg-amber-50 text-amber-800",
+      label: "Due today",
+      value: formatExpenseDate(value),
+    };
+  }
+
+  if (dayDifference === 1) {
+    return {
+      accentClassName: "border-orange-200 bg-orange-50 text-orange-800",
+      label: "Due tomorrow",
+      value: formatExpenseDate(value),
+    };
+  }
+
+  return {
+    accentClassName: "border-[#e8dcc7] bg-[#faf5ec] text-[#8d6a2f]",
+    label: "Deadline",
+    value: formatExpenseDate(value),
+  };
+};
+
 const formatLiturgyDate = (value: string) =>
   new Intl.DateTimeFormat("en-CA", {
     month: "short",
@@ -200,15 +246,6 @@ const buildEmptyPayload = (): PublicDashboardResponse => ({
   settings: defaultDashboardSettings,
   serverTime: new Date().toISOString(),
 });
-
-const AdminShortcut = () => (
-  <Link className="absolute right-3 top-3 z-20 lg:right-6 lg:top-4" to="/admin">
-    <span className="inline-flex h-10 items-center gap-1.5 rounded-xl border border-[#d8e2f1] bg-white/95 px-3.5 text-xs font-semibold text-[#173357] shadow-[0_6px_14px_rgba(16,47,80,0.10)] backdrop-blur transition hover:bg-[#f5f9ff]">
-      <ExternalLink className="h-3.5 w-3.5" />
-      Admin
-    </span>
-  </Link>
-);
 
 const DashboardHeader = ({
   churchName,
@@ -272,7 +309,7 @@ const DashboardHeader = ({
           ) : null}
         </div>
 
-        {(showClock || showDate || showAdminShortcut) ? (
+        {(showClock || showDate) ? (
           <div className="flex min-w-0 items-center justify-start xl:justify-end">
             <div className="text-left xl:text-right">
               {showDate ? (
@@ -289,35 +326,47 @@ const DashboardHeader = ({
           </div>
         ) : null}
 
-        <div className="flex items-center justify-start gap-3 xl:justify-end">
-          <div className="flex flex-wrap items-center justify-end gap-2">
-            <DashboardQrCode
-              alt="Church website QR code"
-              containerClassName="flex flex-col items-center gap-1 rounded-[1.1rem] border border-[#d6c4a4] bg-[#fffaf0]/95 p-2 text-center shadow-[0_10px_24px_rgba(16,47,80,0.08)]"
-              label="Website"
-              sizeClassName="h-14 w-14"
-              url={churchWebsiteUrl}
-            />
-            <DashboardQrCode
-              alt="Donation QR code"
-              containerClassName="flex flex-col items-center gap-1 rounded-[1.1rem] border border-[#d6c4a4] bg-[#fffaf0]/95 p-2 text-center shadow-[0_10px_24px_rgba(16,47,80,0.08)]"
-              label="Donate"
-              sizeClassName="h-14 w-14"
-              url={donationUrl}
+        <div className="flex min-w-0 flex-col items-start gap-2 sm:items-end xl:justify-self-end">
+          {showAdminShortcut ? (
+            <Link
+              className="inline-flex items-center gap-1.5 self-end rounded-sm bg-transparent px-0.5 py-0.5 text-[0.79rem] font-medium text-[#102f50]/70 transition hover:bg-[#102f50]/[0.06] hover:text-[#102f50] hover:underline"
+              to="/admin"
+            >
+              <Settings className="h-3.5 w-3.5 shrink-0" />
+              <span>Admin</span>
+            </Link>
+          ) : null}
+
+          <div className="flex min-w-0 flex-wrap items-center justify-start gap-3 sm:justify-end">
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              <DashboardQrCode
+                alt="Church website QR code"
+                containerClassName="flex flex-col items-center gap-1 rounded-[1.1rem] border border-[#d6c4a4] bg-[#fffaf0]/95 p-2 text-center shadow-[0_10px_24px_rgba(16,47,80,0.08)]"
+                label="Website"
+                sizeClassName="h-14 w-14"
+                url={churchWebsiteUrl}
+              />
+              <DashboardQrCode
+                alt="Donation QR code"
+                containerClassName="flex flex-col items-center gap-1 rounded-[1.1rem] border border-[#d6c4a4] bg-[#fffaf0]/95 p-2 text-center shadow-[0_10px_24px_rgba(16,47,80,0.08)]"
+                label="Donate"
+                sizeClassName="h-14 w-14"
+                url={donationUrl}
+              />
+            </div>
+            <img
+              alt="Church logo"
+              className="h-auto w-full max-w-[clamp(78px,7vw,104px)] object-contain drop-shadow-[0_14px_24px_rgba(16,47,80,0.28)]"
+              src="/church-logo.avif"
             />
           </div>
-          <img
-            alt="Church logo"
-            className="h-auto w-full max-w-[clamp(78px,7vw,104px)] object-contain drop-shadow-[0_14px_24px_rgba(16,47,80,0.28)]"
-            src="/church-logo.avif"
-          />
         </div>
       </div>
     </div>
   </section>
 );
 
-const ProjectsView = ({ items }: { items: ChurchExpense[] }) => (
+const ProjectsView = ({ items, todayDateKey }: { items: ChurchExpense[]; todayDateKey: string }) => (
   <>
     <div className="hidden grid-cols-[2.1fr_1.5fr_1fr_1.6fr_0.7fr_1fr] gap-3 border-b border-[#eadfcf] px-3 pb-2 text-xs font-semibold uppercase tracking-[0.24em] text-[#7f6b49] lg:grid">
       <span>Project</span>
@@ -335,6 +384,7 @@ const ProjectsView = ({ items }: { items: ChurchExpense[] }) => (
         const progress = getClampedFundingPercentage(expense);
         const status = getComputedStatus(expense);
         const statusMeta = dashboardStatusMeta[status];
+        const dueMeta = getExpenseDueMeta(expense.paymentDate, todayDateKey);
 
         return (
           <article
@@ -366,10 +416,11 @@ const ProjectsView = ({ items }: { items: ChurchExpense[] }) => (
 
             <div>
               <p className="text-sm leading-relaxed text-[#415a78] lg:text-base">{expense.description}</p>
-              {expense.paymentDate ? (
-                <p className="mt-3 text-xs font-semibold uppercase tracking-[0.18em] text-[#8d6a2f]">
-                  Due {formatExpenseDate(expense.paymentDate)}
-                </p>
+              {dueMeta ? (
+                <div className={`mt-3 inline-flex items-center gap-2.5 rounded-full border px-3 py-1.5 ${dueMeta.accentClassName}`}>
+                  <span className="text-[0.58rem] font-bold uppercase tracking-[0.22em]">{dueMeta.label}</span>
+                  <span className="text-[0.82rem] font-semibold tracking-[0.03em]">{dueMeta.value}</span>
+                </div>
               ) : null}
             </div>
             <p className="text-2xl font-semibold text-[#132946]">{formatCurrency(expense.totalBudget)}</p>
@@ -724,7 +775,6 @@ export const PublicDashboardPage = () => {
   return (
     <div className="h-screen overflow-hidden bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.28),transparent_24%),linear-gradient(180deg,#ffffff_0%,#7aa8d1_44%,#ffffff_100%)] text-[#112947]">
       <div className="relative mx-auto flex h-full max-w-[1920px] flex-col px-3 py-3 lg:px-6 lg:py-4">
-        {showAdminShortcut ? <AdminShortcut /> : null}
         <DashboardHeader
           churchName={settings.common.churchName}
           churchWebsiteUrl={settings.expenses.churchWebsiteUrl}
@@ -800,7 +850,7 @@ export const PublicDashboardPage = () => {
                 </div>
               </div>
             ) : currentView === "projects" ? (
-              <ProjectsView items={pagedProjects} />
+                  <ProjectsView items={pagedProjects} todayDateKey={todayDateKey} />
             ) : (
               <NewsView items={pagedNews} liturgies={upcomingLiturgies} />
             )}

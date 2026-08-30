@@ -244,6 +244,21 @@ export const defaultDashboardSettings: DashboardSettings = {
 };
 
 const resolveNow = (now: Date | string | number) => (now instanceof Date ? now : new Date(now));
+const dateOnlyPattern = /^(\d{4})-(\d{2})-(\d{2})$/;
+const legacyUtcMidnightPattern = /^(\d{4})-(\d{2})-(\d{2})T00:00:00(?:\.000)?Z$/;
+
+const resolveVisibilityBoundaryTime = (value: string, boundary: "start" | "end") => {
+  const matchedDateOnly = value.match(dateOnlyPattern) ?? value.match(legacyUtcMidnightPattern);
+  if (matchedDateOnly) {
+    const [, year, month, day] = matchedDateOnly;
+    const date = boundary === "end"
+      ? new Date(Number(year), Number(month) - 1, Number(day), 23, 59, 59, 999)
+      : new Date(Number(year), Number(month) - 1, Number(day), 0, 0, 0, 0);
+    return date.getTime();
+  }
+
+  return new Date(value).getTime();
+};
 
 export const isVisibleWithinWindow = (
   window: { visibleFrom?: string; visibleUntil?: string },
@@ -252,14 +267,14 @@ export const isVisibleWithinWindow = (
   const currentTime = resolveNow(now).getTime();
 
   if (window.visibleFrom) {
-    const startTime = new Date(window.visibleFrom).getTime();
+    const startTime = resolveVisibilityBoundaryTime(window.visibleFrom, "start");
     if (!Number.isNaN(startTime) && currentTime < startTime) {
       return false;
     }
   }
 
   if (window.visibleUntil) {
-    const endTime = new Date(window.visibleUntil).getTime();
+    const endTime = resolveVisibilityBoundaryTime(window.visibleUntil, "end");
     if (!Number.isNaN(endTime) && currentTime > endTime) {
       return false;
     }
