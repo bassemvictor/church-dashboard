@@ -23,26 +23,23 @@ import {
   getExpenseApprovalStatus,
   isExpenseVisible,
   isNewsVisible,
-  type ChurchLiturgy,
   type ApproveChurchExpenseResponse,
   type ChurchExpense,
   type ChurchExpenseCategory,
   type ChurchNews,
   type ApproveChurchNewsResponse,
   type ChurchNewsCategory,
-  type CreateChurchLiturgyInput,
   type ChurchExpenseStatus,
   type CreateChurchNewsInput,
   type CreateChurchExpenseInput,
   type DashboardSettings,
   type DashboardSettingsResponse,
   type ExpenseListResponse,
-  type LiturgyListResponse,
   type NewsListResponse,
   type PublicDashboardResponse,
-  type UpdateChurchLiturgyInput,
   type ReorderChurchNewsInput,
   type ReorderChurchExpensesInput,
+  type SetChurchItemActiveInput,
   type UpdateChurchNewsInput,
   type UpdateChurchExpenseInput,
   type UpdateDashboardSettingsInput,
@@ -284,21 +281,12 @@ export const useAdminNews = () =>
     },
   });
 
-export const useAdminLiturgies = () =>
-  useQuery({
-    queryKey: ["admin-liturgies"],
-    queryFn: async () => {
-      const response = await api.get<LiturgyListResponse>("/admin/liturgies");
-      return response.items;
-    },
-  });
-
 export const useDashboardSettings = () =>
   useQuery({
     queryKey: ["dashboard-settings"],
     queryFn: async () => {
       try {
-        const response = await api.get<DashboardSettingsResponse>("/settings");
+        const response = await api.get<DashboardSettingsResponse>("/admin/settings");
         return response.settings;
       } catch {
         return defaultDashboardSettings;
@@ -333,6 +321,24 @@ export const useApproveExpense = () => {
 
   return useMutation({
     mutationFn: (expenseId: string) => api.put<ApproveChurchExpenseResponse>(`/expenses/${expenseId}/approve`, {}),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["admin-expenses"] }),
+        queryClient.invalidateQueries({ queryKey: ["public-expenses"] }),
+        queryClient.invalidateQueries({ queryKey: ["public-dashboard"] }),
+      ]);
+    },
+  });
+};
+
+export const useSetExpenseActive = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (input: { expenseId: string; active: boolean }) =>
+      api.put<ApproveChurchExpenseResponse>(`/expenses/${input.expenseId}/active`, {
+        active: input.active,
+      } satisfies SetChurchItemActiveInput),
     onSuccess: async () => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["admin-expenses"] }),
@@ -394,11 +400,14 @@ export const useApproveNews = () => {
   });
 };
 
-export const useDeleteNews = () => {
+export const useSetNewsActive = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (newsId: string) => api.delete<{ success: true }>(`/news/${newsId}`),
+    mutationFn: (input: { newsId: string; active: boolean }) =>
+      api.put<ApproveChurchNewsResponse>(`/news/${input.newsId}/active`, {
+        active: input.active,
+      } satisfies SetChurchItemActiveInput),
     onSuccess: async () => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["admin-news"] }),
@@ -409,34 +418,15 @@ export const useDeleteNews = () => {
   });
 };
 
-export const useSaveLiturgy = () => {
+export const useDeleteNews = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (input: { id?: string; values: CreateChurchLiturgyInput | UpdateChurchLiturgyInput }) => {
-      if (input.id) {
-        return api.put<ChurchLiturgy>(`/liturgies/${input.id}`, input.values);
-      }
-
-      return api.post<ChurchLiturgy>("/liturgies", input.values);
-    },
+    mutationFn: (newsId: string) => api.delete<{ success: true }>(`/news/${newsId}`),
     onSuccess: async () => {
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["admin-liturgies"] }),
-        queryClient.invalidateQueries({ queryKey: ["public-dashboard"] }),
-      ]);
-    },
-  });
-};
-
-export const useDeleteLiturgy = () => {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: (liturgyId: string) => api.delete<{ success: true }>(`/liturgies/${liturgyId}`),
-    onSuccess: async () => {
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["admin-liturgies"] }),
+        queryClient.invalidateQueries({ queryKey: ["admin-news"] }),
+        queryClient.invalidateQueries({ queryKey: ["public-news"] }),
         queryClient.invalidateQueries({ queryKey: ["public-dashboard"] }),
       ]);
     },

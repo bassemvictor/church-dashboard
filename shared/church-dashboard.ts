@@ -79,6 +79,11 @@ export type DashboardSettings = {
     itemsPerPage: number;
     upcomingLiturgiesCount: number;
   };
+  liturgy: {
+    googleCalendarId?: string;
+    googleCalendarApiKey?: string;
+    lookAheadWeeks: number;
+  };
 };
 
 export type ChurchNews = {
@@ -103,6 +108,8 @@ export type ChurchNews = {
 export type ChurchLiturgy = {
   id: string;
   date: string;
+  startDateTime?: string;
+  endDateTime?: string;
   description?: string;
   createdAt: string;
   updatedAt: string;
@@ -115,11 +122,6 @@ export type ExpenseListResponse = {
 
 export type NewsListResponse = {
   items: ChurchNews[];
-  generatedAt: string;
-};
-
-export type LiturgyListResponse = {
-  items: ChurchLiturgy[];
   generatedAt: string;
 };
 
@@ -175,13 +177,6 @@ export type CreateChurchNewsInput = {
 
 export type UpdateChurchNewsInput = CreateChurchNewsInput;
 
-export type CreateChurchLiturgyInput = {
-  date: string;
-  description?: string;
-};
-
-export type UpdateChurchLiturgyInput = CreateChurchLiturgyInput;
-
 export type ReorderChurchExpensesInput = {
   items: Array<{
     id: string;
@@ -202,6 +197,10 @@ export type ApproveChurchNewsResponse = {
 
 export type ApproveChurchExpenseResponse = {
   item: ChurchExpense;
+};
+
+export type SetChurchItemActiveInput = {
+  active: boolean;
 };
 
 export type UpdateDashboardSettingsInput = DashboardSettings;
@@ -240,6 +239,11 @@ export const defaultDashboardSettings: DashboardSettings = {
     dashboardTitle: "CHURCH NEWS & ANNOUNCEMENTS",
     itemsPerPage: 4,
     upcomingLiturgiesCount: 3,
+  },
+  liturgy: {
+    googleCalendarId: "",
+    googleCalendarApiKey: "",
+    lookAheadWeeks: 3,
   },
 };
 

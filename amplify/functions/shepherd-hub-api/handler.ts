@@ -18,11 +18,9 @@ import {
   churchExpenseCategories,
   churchExpenseStatuses,
   churchStatusModes,
-  type ChurchLiturgy,
   type ChurchNews,
   type ChurchNewsApprovalStatus,
   type ChurchNewsCategory,
-  type CreateChurchLiturgyInput,
   defaultDashboardSettings,
   type CreateChurchNewsInput,
   type ChurchExpense,
@@ -31,6 +29,7 @@ import {
   type ChurchExpenseStatusMode,
   type CreateChurchExpenseInput,
   type DashboardSettings,
+  type SetChurchItemActiveInput,
   getExpenseApprovalStatus,
   getNewsApprovalStatus,
   isExpenseVisible,
@@ -97,9 +96,13 @@ type LegacyDashboardSettings = {
   newsDashboardTitle?: string;
   newsItemsPerPage?: number;
   upcomingLiturgiesCount?: number;
+  liturgyGoogleCalendarId?: string;
+  liturgyGoogleCalendarApiKey?: string;
+  liturgyLookAheadWeeks?: number;
   common?: Partial<DashboardSettings["common"]>;
   expenses?: Partial<DashboardSettings["expenses"]>;
   news?: Partial<DashboardSettings["news"]>;
+  liturgy?: Partial<DashboardSettings["liturgy"]>;
 };
 
 type NewsItem = BaseItem & {
@@ -119,16 +122,37 @@ type NewsItem = BaseItem & {
   displayOrder: number;
 };
 
-type LiturgyItem = BaseItem & {
-  id: string;
-  date: string;
-  description?: string;
-};
-
 type RequestContext = {
   groups: string[];
   isAdmin: boolean;
 };
+
+type GoogleCalendarEvent = {
+  id?: string;
+  summary?: string;
+  description?: string;
+  location?: string;
+  start?: {
+    date?: string;
+    dateTime?: string;
+  };
+  end?: {
+    date?: string;
+    dateTime?: string;
+  };
+};
+
+type GoogleCalendarEventsResponse = {
+  items?: GoogleCalendarEvent[];
+};
+
+const churchTimeZone = "America/Toronto";
+const churchDateFormatter = new Intl.DateTimeFormat("en-CA", {
+  timeZone: churchTimeZone,
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
 
 const tableName = process.env.SHEPHERD_HUB_RECORDS_TABLE;
 
@@ -154,7 +178,6 @@ const jsonResponse = (statusCode: number, body: unknown) => ({
 const padDisplayOrder = (displayOrder: number) => displayOrder.toString().padStart(5, "0");
 const expensePk = (id: string) => `EXPENSE#${id}`;
 const newsPk = (id: string) => `NEWS#${id}`;
-const liturgyPk = (id: string) => `LITURGY#${id}`;
 const settingsPk = () => "SETTINGS#DASHBOARD";
 
 const normalizeGroups = (value: unknown): string[] => {
@@ -290,6 +313,10 @@ const parseBoolean = (value: unknown, fieldName: string) => {
   return value;
 };
 
+const validateSetActiveInput = (input: Record<string, unknown>): SetChurchItemActiveInput => ({
+  active: parseBoolean(input.active, "active"),
+});
+
 const validateVisibilityRange = (visibleFrom: string | undefined, visibleUntil: string | undefined) => {
   if (visibleFrom && visibleUntil && new Date(visibleFrom).getTime() > new Date(visibleUntil).getTime()) {
     throw Object.assign(new Error("visibleUntil must be on or after visibleFrom."), { statusCode: 400 });
@@ -345,10 +372,11 @@ const validateExpenseInput = (input: Record<string, unknown>): CreateChurchExpen
 };
 
 const validateSettingsInput = (input: Record<string, unknown>): DashboardSettings => {
-  if ("common" in input || "expenses" in input || "news" in input) {
+  if ("common" in input || "expenses" in input || "news" in input || "liturgy" in input) {
     const common = parseObject(input.common, "common");
     const expenses = parseObject(input.expenses, "expenses");
     const news = parseObject(input.news, "news");
+    const liturgy = parseObject(input.liturgy, "liturgy");
 
     return {
       common: {
@@ -381,6 +409,16 @@ const validateSettingsInput = (input: Record<string, unknown>): DashboardSetting
           "news.upcomingLiturgiesCount",
           1,
           10,
+        ),
+      },
+      liturgy: {
+        googleCalendarId: parseOptionalString(liturgy.googleCalendarId),
+        googleCalendarApiKey: parseOptionalString(liturgy.googleCalendarApiKey),
+        lookAheadWeeks: parseIntegerInRange(
+          liturgy.lookAheadWeeks ?? defaultDashboardSettings.liturgy.lookAheadWeeks,
+          "liturgy.lookAheadWeeks",
+          1,
+          8,
         ),
       },
     };
@@ -429,6 +467,16 @@ const validateSettingsInput = (input: Record<string, unknown>): DashboardSetting
         10,
       ),
     },
+    liturgy: {
+      googleCalendarId: parseOptionalString(input.liturgyGoogleCalendarId),
+      googleCalendarApiKey: parseOptionalString(input.liturgyGoogleCalendarApiKey),
+      lookAheadWeeks: parseIntegerInRange(
+        input.liturgyLookAheadWeeks ?? defaultDashboardSettings.liturgy.lookAheadWeeks,
+        "liturgyLookAheadWeeks",
+        1,
+        8,
+      ),
+    },
   };
 };
 
@@ -437,6 +485,7 @@ const sanitizeDashboardSettings = (settings?: Partial<DashboardSettings> | Legac
   const common = isRecord(legacy.common) ? legacy.common : {};
   const expenses = isRecord(legacy.expenses) ? legacy.expenses : {};
   const news = isRecord(legacy.news) ? legacy.news : {};
+  const liturgy = isRecord(legacy.liturgy) ? legacy.liturgy : {};
 
   return {
     common: {
@@ -506,8 +555,32 @@ const sanitizeDashboardSettings = (settings?: Partial<DashboardSettings> | Legac
             ? Math.max(1, Math.min(10, Math.floor(legacy.upcomingLiturgiesCount)))
             : defaultDashboardSettings.news.upcomingLiturgiesCount,
     },
+    liturgy: {
+      googleCalendarId:
+        typeof liturgy.googleCalendarId === "string"
+          ? liturgy.googleCalendarId.trim()
+          : legacy.liturgyGoogleCalendarId?.trim() ?? defaultDashboardSettings.liturgy.googleCalendarId,
+      googleCalendarApiKey:
+        typeof liturgy.googleCalendarApiKey === "string"
+          ? liturgy.googleCalendarApiKey.trim()
+          : legacy.liturgyGoogleCalendarApiKey?.trim() ?? defaultDashboardSettings.liturgy.googleCalendarApiKey,
+      lookAheadWeeks:
+        typeof liturgy.lookAheadWeeks === "number"
+          ? Math.max(1, Math.min(8, Math.floor(liturgy.lookAheadWeeks)))
+          : typeof legacy.liturgyLookAheadWeeks === "number"
+            ? Math.max(1, Math.min(8, Math.floor(legacy.liturgyLookAheadWeeks)))
+            : defaultDashboardSettings.liturgy.lookAheadWeeks,
+    },
   };
 };
+
+const sanitizePublicDashboardSettings = (settings: DashboardSettings): DashboardSettings => ({
+  ...settings,
+  liturgy: {
+    ...settings.liturgy,
+    googleCalendarApiKey: "",
+  },
+});
 
 const toExpense = (item: ExpenseItem): ChurchExpense => ({
   id: item.id,
@@ -575,23 +648,6 @@ const toNewsItem = (news: ChurchNews): NewsItem => ({
   ...news,
 });
 
-const toLiturgy = (item: LiturgyItem): ChurchLiturgy => ({
-  id: item.id,
-  date: item.date,
-  description: item.description,
-  createdAt: item.createdAt,
-  updatedAt: item.updatedAt,
-});
-
-const toLiturgyItem = (liturgy: ChurchLiturgy): LiturgyItem => ({
-  PK: liturgyPk(liturgy.id),
-  SK: "LITURGY",
-  entityType: "ChurchLiturgy",
-  GSI1PK: "LITURGY",
-  GSI1SK: `${liturgy.date}#${liturgy.id}`,
-  ...liturgy,
-});
-
 const parseOptionalIsoDate = (value: unknown, fieldName: string) => {
   const parsed = parseOptionalString(value);
   if (!parsed) {
@@ -652,11 +708,6 @@ const validateNewsInput = (input: Record<string, unknown>): CreateChurchNewsInpu
   };
 };
 
-const validateLiturgyInput = (input: Record<string, unknown>): CreateChurchLiturgyInput => ({
-  date: parseDateOnly(input.date, "date"),
-  description: parseOptionalString(input.description),
-});
-
 const listExpenses = async (activeOnly: boolean, now = new Date()) => {
   const result = await documentClient.send(
     new QueryCommand({
@@ -710,22 +761,126 @@ const listNews = async (activeOnly: boolean, now = new Date()) => {
     .sort(activeOnly ? compareNews : (left, right) => left.displayOrder - right.displayOrder);
 };
 
-const listLiturgies = async () => {
-  const result = await documentClient.send(
-    new QueryCommand({
-      TableName: tableName,
-      IndexName: "GSI1",
-      KeyConditionExpression: "GSI1PK = :pk",
-      ExpressionAttributeValues: {
-        ":pk": "LITURGY",
-      },
-    }),
-  );
+const hasConfiguredGoogleCalendar = (settings: DashboardSettings) =>
+  Boolean(settings.liturgy.googleCalendarId && settings.liturgy.googleCalendarApiKey);
 
-  const items = (result.Items ?? []) as LiturgyItem[];
-  return items
-    .map(toLiturgy)
-    .sort((left, right) => left.date.localeCompare(right.date));
+const extractDateFromGoogleEvent = (event: GoogleCalendarEvent) => {
+  const startValue = event.start?.dateTime ?? event.start?.date;
+  if (!startValue) {
+    return null;
+  }
+
+  if (event.start?.date) {
+    return event.start.date;
+  }
+
+  const parsed = new Date(startValue);
+  if (Number.isNaN(parsed.getTime())) {
+    return null;
+  }
+
+  return churchDateFormatter.format(parsed);
+};
+
+const formatGoogleEventDescription = (event: GoogleCalendarEvent, summary: string) => {
+  const parts: string[] = [];
+  const normalizedSummary = summary.trim();
+
+  if (normalizedSummary && normalizedSummary.toLowerCase() !== "divine liturgy") {
+    parts.push(normalizedSummary);
+  }
+
+  const startDateTime = event.start?.dateTime;
+  if (startDateTime) {
+    const parsed = new Date(startDateTime);
+    if (!Number.isNaN(parsed.getTime())) {
+      parts.push(
+        new Intl.DateTimeFormat("en-CA", {
+          hour: "numeric",
+          minute: "2-digit",
+          hour12: true,
+          timeZone: churchTimeZone,
+        }).format(parsed),
+      );
+    }
+  }
+
+  if (event.location?.trim()) {
+    parts.push(event.location.trim());
+  }
+
+  return parts.length ? parts.join(" · ") : undefined;
+};
+
+const listGoogleCalendarLiturgies = async (settings: DashboardSettings, now = new Date()) => {
+  const calendarId = settings.liturgy.googleCalendarId?.trim();
+  const apiKey = settings.liturgy.googleCalendarApiKey?.trim();
+  if (!calendarId || !apiKey) {
+    return [];
+  }
+
+  const timeMin = now.toISOString();
+  const timeMax = new Date(now.getTime() + settings.liturgy.lookAheadWeeks * 7 * 24 * 60 * 60 * 1000).toISOString();
+  const url = new URL(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events`);
+  url.searchParams.set("key", apiKey);
+  url.searchParams.set("singleEvents", "true");
+  url.searchParams.set("orderBy", "startTime");
+  url.searchParams.set("timeMin", timeMin);
+  url.searchParams.set("timeMax", timeMax);
+  url.searchParams.set("maxResults", "250");
+
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`Unable to load Google Calendar liturgies (${response.status}).`);
+  }
+
+  const payload = await response.json() as GoogleCalendarEventsResponse;
+  const items: Array<{
+    id: string;
+    date: string;
+    startDateTime?: string;
+    endDateTime?: string;
+    description?: string;
+    createdAt: string;
+    updatedAt: string;
+  }> = [];
+
+  for (const event of payload.items ?? []) {
+    const summary = event.summary?.trim();
+    if (!summary || !summary.toLowerCase().includes("divine liturgy")) {
+      continue;
+    }
+
+    const date = extractDateFromGoogleEvent(event);
+    if (!date) {
+      continue;
+    }
+
+    items.push({
+      id: event.id ?? `${date}-${summary.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
+      date,
+      startDateTime: event.start?.dateTime,
+      endDateTime: event.end?.dateTime,
+      description: formatGoogleEventDescription(event, summary),
+      createdAt: now.toISOString(),
+      updatedAt: now.toISOString(),
+    });
+  }
+
+  return items.sort((left, right) => left.date.localeCompare(right.date));
+};
+
+const listPublicLiturgies = async (settings: DashboardSettings, now = new Date()) => {
+  if (!hasConfiguredGoogleCalendar(settings)) {
+    return [];
+  }
+
+  try {
+    return await listGoogleCalendarLiturgies(settings, now);
+  } catch (error) {
+    console.error("Unable to refresh Google Calendar liturgies.", error);
+    return [];
+  }
 };
 
 const getExpense = async (id: string) => {
@@ -754,20 +909,6 @@ const getNews = async (id: string) => {
   );
 
   return result.Item as NewsItem | undefined;
-};
-
-const getLiturgy = async (id: string) => {
-  const result = await documentClient.send(
-    new GetCommand({
-      TableName: tableName,
-      Key: {
-        PK: liturgyPk(id),
-        SK: "LITURGY",
-      },
-    }),
-  );
-
-  return result.Item as LiturgyItem | undefined;
 };
 
 const getSettings = async () => {
@@ -868,26 +1009,6 @@ const createNews = async (input: CreateChurchNewsInput) => {
   return news;
 };
 
-const createLiturgy = async (input: CreateChurchLiturgyInput) => {
-  const now = new Date().toISOString();
-  const liturgy: ChurchLiturgy = {
-    id: randomUUID(),
-    date: input.date,
-    description: input.description,
-    createdAt: now,
-    updatedAt: now,
-  };
-
-  await documentClient.send(
-    new PutCommand({
-      TableName: tableName,
-      Item: toLiturgyItem(liturgy),
-    }),
-  );
-
-  return liturgy;
-};
-
 const updateExpense = async (id: string, input: CreateChurchExpenseInput) => {
   const existing = await getExpense(id);
   if (!existing) {
@@ -935,6 +1056,28 @@ const approveExpense = async (id: string) => {
     requiresApproval: existing.requiresApproval ?? false,
     approvalStatus: existing.requiresApproval ? "APPROVED" : "NOT_REQUIRED",
     updatedAt: new Date().toISOString(),
+  };
+
+  await documentClient.send(
+    new PutCommand({
+      TableName: tableName,
+      Item: toExpenseItem(expense),
+    }),
+  );
+
+  return expense;
+};
+
+const setExpenseActiveState = async (id: string, active: boolean) => {
+  const existing = await getExpense(id);
+  if (!existing) {
+    throw Object.assign(new Error("Expense not found."), { statusCode: 404 });
+  }
+
+  const expense: ChurchExpense = {
+    ...toExpense(existing),
+    updatedAt: new Date().toISOString(),
+    active,
   };
 
   await documentClient.send(
@@ -1006,28 +1149,26 @@ const approveNews = async (id: string) => {
   return news;
 };
 
-const updateLiturgy = async (id: string, input: CreateChurchLiturgyInput) => {
-  const existing = await getLiturgy(id);
+const setNewsActiveState = async (id: string, active: boolean) => {
+  const existing = await getNews(id);
   if (!existing) {
-    throw Object.assign(new Error("Liturgy not found."), { statusCode: 404 });
+    throw Object.assign(new Error("News item not found."), { statusCode: 404 });
   }
 
-  const liturgy: ChurchLiturgy = {
-    id,
-    date: input.date,
-    description: input.description,
-    createdAt: existing.createdAt,
+  const news: ChurchNews = {
+    ...toNews(existing),
     updatedAt: new Date().toISOString(),
+    active,
   };
 
   await documentClient.send(
     new PutCommand({
       TableName: tableName,
-      Item: toLiturgyItem(liturgy),
+      Item: toNewsItem(news),
     }),
   );
 
-  return liturgy;
+  return news;
 };
 
 const deleteExpense = async (id: string) => {
@@ -1092,23 +1233,6 @@ const deleteNews = async (id: string) => {
       items: reordered.map((item) => ({ id: item.id, displayOrder: item.displayOrder })),
     });
   }
-};
-
-const deleteLiturgy = async (id: string) => {
-  const existing = await getLiturgy(id);
-  if (!existing) {
-    throw Object.assign(new Error("Liturgy not found."), { statusCode: 404 });
-  }
-
-  await documentClient.send(
-    new DeleteCommand({
-      TableName: tableName,
-      Key: {
-        PK: liturgyPk(id),
-        SK: "LITURGY",
-      },
-    }),
-  );
 };
 
 const chunk = <T,>(items: T[], size: number) => {
@@ -1290,7 +1414,8 @@ export const handler: APIGatewayProxyHandlerV2 = async (rawEvent) => {
     }
 
     if (method === "GET" && path === "/liturgies") {
-      const items = await listLiturgies();
+      const settings = await getSettings();
+      const items = await listPublicLiturgies(settings);
       return jsonResponse(200, {
         items,
         generatedAt: new Date().toISOString(),
@@ -1298,25 +1423,25 @@ export const handler: APIGatewayProxyHandlerV2 = async (rawEvent) => {
     }
 
     if (method === "GET" && path === "/dashboard") {
-      const [projects, news, liturgies, settings] = await Promise.all([
+      const settings = await getSettings();
+      const [projects, news, liturgies] = await Promise.all([
         listExpenses(true),
         listNews(true),
-        listLiturgies(),
-        getSettings(),
+        listPublicLiturgies(settings),
       ]);
 
       return jsonResponse(200, {
         projects,
         news,
         liturgies,
-        settings,
+        settings: sanitizePublicDashboardSettings(settings),
         serverTime: new Date().toISOString(),
       });
     }
 
     if (method === "GET" && path === "/settings") {
       return jsonResponse(200, {
-        settings: await getSettings(),
+        settings: sanitizePublicDashboardSettings(await getSettings()),
       });
     }
 
@@ -1336,11 +1461,10 @@ export const handler: APIGatewayProxyHandlerV2 = async (rawEvent) => {
       });
     }
 
-    if (method === "GET" && path === "/admin/liturgies") {
+    if (method === "GET" && path === "/admin/settings") {
       requireAdmin(context);
       return jsonResponse(200, {
-        items: await listLiturgies(),
-        generatedAt: new Date().toISOString(),
+        settings: await getSettings(),
       });
     }
 
@@ -1358,16 +1482,19 @@ export const handler: APIGatewayProxyHandlerV2 = async (rawEvent) => {
       });
     }
 
+    const setExpenseActiveMatch = path.match(/^\/expenses\/([^/]+)\/active$/);
+    if (setExpenseActiveMatch && method === "PUT") {
+      requireAdmin(context);
+      const input = validateSetActiveInput(parseBody<Record<string, unknown>>(event));
+      return jsonResponse(200, {
+        item: await setExpenseActiveState(setExpenseActiveMatch[1] ?? "", input.active),
+      });
+    }
+
     if (method === "POST" && path === "/news") {
       requireAdmin(context);
       const input = validateNewsInput(parseBody<Record<string, unknown>>(event));
       return jsonResponse(201, await createNews(input));
-    }
-
-    if (method === "POST" && path === "/liturgies") {
-      requireAdmin(context);
-      const input = validateLiturgyInput(parseBody<Record<string, unknown>>(event));
-      return jsonResponse(201, await createLiturgy(input));
     }
 
     const approveNewsMatch = path.match(/^\/news\/([^/]+)\/approve$/);
@@ -1375,6 +1502,15 @@ export const handler: APIGatewayProxyHandlerV2 = async (rawEvent) => {
       requireAdmin(context);
       return jsonResponse(200, {
         item: await approveNews(approveNewsMatch[1] ?? ""),
+      });
+    }
+
+    const setNewsActiveMatch = path.match(/^\/news\/([^/]+)\/active$/);
+    if (setNewsActiveMatch && method === "PUT") {
+      requireAdmin(context);
+      const input = validateSetActiveInput(parseBody<Record<string, unknown>>(event));
+      return jsonResponse(200, {
+        item: await setNewsActiveState(setNewsActiveMatch[1] ?? "", input.active),
       });
     }
 
@@ -1450,31 +1586,6 @@ export const handler: APIGatewayProxyHandlerV2 = async (rawEvent) => {
 
       if (method === "DELETE") {
         await deleteNews(newsId);
-        return jsonResponse(200, { success: true });
-      }
-    }
-
-    const liturgyIdMatch = path.match(/^\/liturgies\/([^/]+)$/);
-    if (liturgyIdMatch) {
-      requireAdmin(context);
-      const liturgyId = liturgyIdMatch[1] ?? "";
-
-      if (method === "GET") {
-        const liturgy = await getLiturgy(liturgyId);
-        if (!liturgy) {
-          return jsonResponse(404, { message: "Liturgy not found." });
-        }
-
-        return jsonResponse(200, toLiturgy(liturgy));
-      }
-
-      if (method === "PUT") {
-        const input = validateLiturgyInput(parseBody<Record<string, unknown>>(event));
-        return jsonResponse(200, await updateLiturgy(liturgyId, input));
-      }
-
-      if (method === "DELETE") {
-        await deleteLiturgy(liturgyId);
         return jsonResponse(200, { success: true });
       }
     }

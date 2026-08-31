@@ -1,4 +1,4 @@
-import { GripVertical, Pencil, Plus, Trash2, ArrowDown, ArrowUp, Image as ImageIcon } from "lucide-react";
+import { GripVertical, Pencil, Plus, Trash2, ArrowDown, ArrowUp, Image as ImageIcon, Eye, EyeOff } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 
@@ -28,6 +28,7 @@ import {
   useDeleteExpense,
   useReorderExpenses,
   useSaveExpense,
+  useSetExpenseActive,
 } from "../lib/church-dashboard";
 import { getVisibilityRangeError, normalizeDateValue, toDateInputValue } from "../lib/church-dashboard-visibility";
 import {
@@ -522,10 +523,13 @@ export const AdminExpensesPage = () => {
   const expensesQuery = useAdminExpenses();
   const reorderMutation = useReorderExpenses();
   const deleteMutation = useDeleteExpense();
+  const setExpenseActiveMutation = useSetExpenseActive();
   const [orderedExpenses, setOrderedExpenses] = useState<ChurchExpense[]>([]);
   const [editingExpense, setEditingExpense] = useState<ChurchExpense | null>(null);
   const [isEditorOpen, setIsEditorOpen] = useState(false);
   const [draggedExpenseId, setDraggedExpenseId] = useState<string | null>(null);
+  const [togglingExpenseId, setTogglingExpenseId] = useState<string | null>(null);
+  const [toggleErrorMessage, setToggleErrorMessage] = useState("");
   const now = new Date();
 
   useEffect(() => {
@@ -543,6 +547,16 @@ export const AdminExpensesPage = () => {
         item.requiresApproval && getExpenseApprovalStatus(item) === "PENDING" ? [] : [{ item, index }],
       ),
     [orderedExpenses],
+  );
+
+  const activeExpenses = useMemo(
+    () => manageableExpenses.filter((entry) => entry.item.active),
+    [manageableExpenses],
+  );
+
+  const inactiveExpenses = useMemo(
+    () => manageableExpenses.filter((entry) => !entry.item.active),
+    [manageableExpenses],
   );
 
   const totals = useMemo(() => {
@@ -579,8 +593,37 @@ export const AdminExpensesPage = () => {
     await persistOrder(reorderItems(orderedExpenses, fromIndex, toIndex));
   };
 
+  const toggleExpenseActiveState = async (expense: ChurchExpense, active: boolean) => {
+    const previousItems = orderedExpenses;
+    const nextItems = orderedExpenses.map((item) => (
+      item.id === expense.id ? { ...item, active } : item
+    ));
+
+    setToggleErrorMessage("");
+    setTogglingExpenseId(expense.id);
+    setOrderedExpenses(nextItems);
+
+    try {
+      await setExpenseActiveMutation.mutateAsync({
+        expenseId: expense.id,
+        active,
+      });
+    } catch (error) {
+      setOrderedExpenses(previousItems);
+      setToggleErrorMessage(error instanceof Error ? error.message : "Unable to update this expense item right now.");
+    } finally {
+      setTogglingExpenseId(null);
+    }
+  };
+
   return (
     <div className="space-y-6">
+      {toggleErrorMessage ? (
+        <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+          {toggleErrorMessage}
+        </div>
+      ) : null}
+
       <div className="flex justify-end">
         <Button
           className="h-10 rounded-lg px-4"
@@ -635,24 +678,24 @@ export const AdminExpensesPage = () => {
 
       <Card className="rounded-xl border-[#dbe4f0] bg-white">
         <CardHeader>
-          <CardTitle>Expense items</CardTitle>
-          <CardDescription>Drag rows to change `displayOrder`, or use the move buttons.</CardDescription>
+          <CardTitle>Active expense items</CardTitle>
+          <CardDescription>Drag rows to change `displayOrder`, use the move buttons, or deactivate an item to move it out of the main list.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
-          {!manageableExpenses.length && !expensesQuery.isLoading ? (
+          {!activeExpenses.length && !expensesQuery.isLoading ? (
             <div className="rounded-2xl border border-dashed border-[#cbd8eb] bg-[#f8fbff] px-5 py-10 text-center">
-              <p className="text-lg font-semibold text-[#112947]">No expense items yet</p>
-              <p className="mt-2 text-sm text-[#556b86]">Create your first expense item to populate the public dashboard.</p>
+              <p className="text-lg font-semibold text-[#112947]">No active expense items</p>
+              <p className="mt-2 text-sm text-[#556b86]">Create an expense item or reactivate one from the inactive section below.</p>
             </div>
           ) : null}
 
-          {manageableExpenses.map(({ item: expense, index }) => {
+          {activeExpenses.map(({ item: expense, index: originalIndex }, index) => {
             const Icon = getIconComponent(expense.icon);
             const status = getComputedStatus(expense);
             const statusMeta = dashboardStatusMeta[status];
             const approvalStatus = getExpenseApprovalStatus(expense);
-            const previousItem = manageableExpenses[manageableExpenses.findIndex((entry) => entry.item.id === expense.id) - 1];
-            const nextItem = manageableExpenses[manageableExpenses.findIndex((entry) => entry.item.id === expense.id) + 1];
+            const previousItem = activeExpenses[index - 1];
+            const nextItem = activeExpenses[index + 1];
 
             return (
               <div
@@ -667,7 +710,7 @@ export const AdminExpensesPage = () => {
                   }
 
                   const fromIndex = orderedExpenses.findIndex((item) => item.id === draggedExpenseId);
-                  void moveItem(fromIndex, index);
+                  void moveItem(fromIndex, originalIndex);
                 }}
               >
                 <div className="flex items-center justify-center text-[#97723a]">
@@ -723,11 +766,20 @@ export const AdminExpensesPage = () => {
                   <p className="mt-1 text-xs text-[#556b86]">{expense.active ? "Active" : "Hidden"}</p>
                 </div>
                 <div className="flex flex-wrap items-start justify-end gap-2">
-                  <Button onClick={() => void moveItem(index, previousItem?.index ?? index)} size="icon" type="button" variant="outline">
+                  <Button onClick={() => void moveItem(originalIndex, previousItem?.index ?? originalIndex)} size="icon" type="button" variant="outline">
                     <ArrowUp className="h-4 w-4" />
                   </Button>
-                  <Button onClick={() => void moveItem(index, nextItem?.index ?? index)} size="icon" type="button" variant="outline">
+                  <Button onClick={() => void moveItem(originalIndex, nextItem?.index ?? originalIndex)} size="icon" type="button" variant="outline">
                     <ArrowDown className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    disabled={togglingExpenseId === expense.id}
+                    onClick={() => void toggleExpenseActiveState(expense, false)}
+                    type="button"
+                    variant="outline"
+                  >
+                    <EyeOff className="h-4 w-4" />
+                    Deactivate
                   </Button>
                   <Button
                     onClick={() => {
@@ -761,6 +813,133 @@ export const AdminExpensesPage = () => {
             );
           })}
 
+        </CardContent>
+      </Card>
+
+      <Card className="rounded-xl border-[#dbe4f0] bg-white">
+        <CardHeader>
+          <CardTitle>Inactive expense items</CardTitle>
+          <CardDescription>These items stay out of the public dashboard until you activate them again.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {!inactiveExpenses.length ? (
+            <div className="rounded-2xl border border-dashed border-[#cbd8eb] bg-[#f8fbff] px-5 py-8 text-center">
+              <p className="text-base font-semibold text-[#112947]">No inactive expense items</p>
+            </div>
+          ) : null}
+
+          {inactiveExpenses.map(({ item: expense, index: originalIndex }, index) => {
+            const Icon = getIconComponent(expense.icon);
+            const status = getComputedStatus(expense);
+            const statusMeta = dashboardStatusMeta[status];
+            const approvalStatus = getExpenseApprovalStatus(expense);
+            const previousItem = inactiveExpenses[index - 1];
+            const nextItem = inactiveExpenses[index + 1];
+
+            return (
+              <div
+                className="grid gap-3 rounded-xl border border-[#dbe4f0] bg-[#fbfcff] p-4 lg:grid-cols-[auto_88px_64px_minmax(0,1.3fr)_0.9fr_0.9fr_0.8fr_auto]"
+                draggable
+                key={expense.id}
+                onDragOver={(event) => event.preventDefault()}
+                onDragStart={() => setDraggedExpenseId(expense.id)}
+                onDrop={() => {
+                  if (!draggedExpenseId || draggedExpenseId === expense.id) {
+                    return;
+                  }
+
+                  const fromIndex = orderedExpenses.findIndex((item) => item.id === draggedExpenseId);
+                  void moveItem(fromIndex, originalIndex);
+                }}
+              >
+                <div className="flex items-center justify-center text-[#97723a]">
+                  <GripVertical className="h-5 w-5" />
+                </div>
+                <img
+                  alt={expense.title}
+                  className="h-20 w-[88px] rounded-lg border border-[#dbe4f0] object-cover"
+                  src={expense.imageUrl || "/church-hero.png"}
+                />
+                <div className="flex items-center justify-center">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#112947] text-white">
+                    <Icon className="h-5 w-5" />
+                  </div>
+                </div>
+                <div className="min-w-0">
+                  <p className="text-lg font-semibold text-[#112947]">{expense.title}</p>
+                  <p className="mt-1 text-xs uppercase tracking-[0.22em] text-[#97723a]">{categoryLabels[expense.category]}</p>
+                  {approvalStatus === "APPROVED" ? (
+                    <p className="mt-2 text-xs font-semibold uppercase tracking-[0.18em] text-sky-700">Approved</p>
+                  ) : null}
+                  <p className="mt-2 line-clamp-2 text-sm text-[#556b86]">{expense.description}</p>
+                </div>
+                <div>
+                  <p className="text-xs uppercase tracking-[0.2em] text-[#97723a]">Budget</p>
+                  <p className="mt-2 text-base font-semibold text-[#112947]">{formatCurrency(expense.totalBudget)}</p>
+                </div>
+                <div>
+                  <p className="text-xs uppercase tracking-[0.2em] text-[#97723a]">Funded</p>
+                  <p className="mt-2 text-base font-semibold text-[#112947]">{formatCurrency(expense.fundedAmount)}</p>
+                </div>
+                <div>
+                  <p className="text-xs uppercase tracking-[0.2em] text-[#97723a]">Progress</p>
+                  <p className="mt-2 text-base font-semibold text-[#112947]">{Math.round(getFundingPercentage(expense))}%</p>
+                  <div className="mt-2 h-2.5 rounded-md bg-[#ece4d9]">
+                    <div
+                      className={`h-2.5 rounded-md bg-gradient-to-r ${statusMeta.trackTone}`}
+                      style={{ width: `${getClampedFundingPercentage(expense)}%` }}
+                    />
+                  </div>
+                  <p className={`mt-2 text-xs font-semibold uppercase ${statusMeta.tone}`}>{statusMeta.label}</p>
+                  <p className="mt-1 text-xs text-[#556b86]">Inactive</p>
+                </div>
+                <div className="flex flex-wrap items-start justify-end gap-2">
+                  <Button onClick={() => void moveItem(originalIndex, previousItem?.index ?? originalIndex)} size="icon" type="button" variant="outline">
+                    <ArrowUp className="h-4 w-4" />
+                  </Button>
+                  <Button onClick={() => void moveItem(originalIndex, nextItem?.index ?? originalIndex)} size="icon" type="button" variant="outline">
+                    <ArrowDown className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    disabled={togglingExpenseId === expense.id}
+                    onClick={() => void toggleExpenseActiveState(expense, true)}
+                    type="button"
+                    variant="outline"
+                  >
+                    <Eye className="h-4 w-4" />
+                    Activate
+                  </Button>
+                  <Button
+                    onClick={() => {
+                      setEditingExpense(expense);
+                      setIsEditorOpen(true);
+                    }}
+                    size="icon"
+                    type="button"
+                    variant="outline"
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    onClick={async () => {
+                      const confirmed = window.confirm(`Delete "${expense.title}"?`);
+                      if (!confirmed) {
+                        return;
+                      }
+
+                      await deleteMutation.mutateAsync(expense.id);
+                      await removeExpenseImage(expense.imageKey);
+                    }}
+                    size="icon"
+                    type="button"
+                    variant="outline"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            );
+          })}
         </CardContent>
       </Card>
 

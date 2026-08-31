@@ -227,10 +227,28 @@ const getExpenseDueMeta = (value: string | undefined, todayDateKey: string) => {
 
 const formatLiturgyDate = (value: string) =>
   new Intl.DateTimeFormat("en-CA", {
+    weekday: "long",
     month: "short",
     day: "numeric",
     year: "numeric",
   }).format(new Date(`${value}T12:00:00`));
+
+const formatLiturgyTime = (value?: string) => {
+  if (!value) {
+    return null;
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+
+  return new Intl.DateTimeFormat("en-CA", {
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  }).format(date);
+};
 
 const getLocalDateKey = (value: Date) => {
   const year = value.getFullYear();
@@ -519,14 +537,19 @@ const NewsView = ({
       ) : null}
     </div>
 
-    <aside className="rounded-[1.6rem] border border-[#eadfcf] bg-[#fff9ef] p-4 shadow-[0_14px_36px_rgba(31,42,68,0.04)]">
+    <aside className="rounded-[1.6rem] border border-[#eadfcf] bg-[#fff9ef] p-3.5 shadow-[0_14px_36px_rgba(31,42,68,0.04)]">
       <p className="text-sm font-semibold uppercase tracking-[0.24em] text-[#8d6a2f]">Upcoming Divine Liturgies</p>
       {liturgies.length ? (
-        <div className="mt-4 space-y-4">
+        <div className="mt-3 space-y-3">
           {liturgies.map((item) => (
-            <div className="border-b border-[#eadfcf] pb-4 last:border-b-0 last:pb-0" key={item.id}>
-              <p className="text-lg font-semibold text-[#112947]">{formatLiturgyDate(item.date)}</p>
-              {item.description ? <p className="mt-1 text-sm text-[#556b86]">{item.description}</p> : null}
+            <div className="border-b border-[#eadfcf] pb-3 last:border-b-0 last:pb-0" key={item.id}>
+              <p className="text-[1.35rem] font-semibold leading-tight text-[#112947]">{formatLiturgyDate(item.date)}</p>
+              {formatLiturgyTime(item.startDateTime) && formatLiturgyTime(item.endDateTime) ? (
+                <p className="mt-0.5 text-sm font-medium leading-snug text-[#8d6a2f]">
+                  From {formatLiturgyTime(item.startDateTime)} to {formatLiturgyTime(item.endDateTime)}
+                </p>
+              ) : null}
+              {item.description ? <p className="mt-0.5 text-sm leading-snug text-[#556b86]">{item.description}</p> : null}
             </div>
           ))}
         </div>

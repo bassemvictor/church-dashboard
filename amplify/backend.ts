@@ -124,18 +124,17 @@ httpApi.addRoutes({
 
 addProtectedRoutes("/admin/expenses", [HttpMethod.GET]);
 addProtectedRoutes("/admin/news", [HttpMethod.GET]);
-addProtectedRoutes("/admin/liturgies", [HttpMethod.GET]);
+addProtectedRoutes("/admin/settings", [HttpMethod.GET, HttpMethod.PUT]);
 addProtectedRoutes("/expenses", [HttpMethod.POST]);
 addProtectedRoutes("/expenses/order", [HttpMethod.PUT]);
 addProtectedRoutes("/expenses/{id}/approve", [HttpMethod.PUT]);
+addProtectedRoutes("/expenses/{id}/active", [HttpMethod.PUT]);
 addProtectedRoutes("/expenses/{id}", [HttpMethod.GET, HttpMethod.PUT, HttpMethod.DELETE]);
 addProtectedRoutes("/news", [HttpMethod.POST]);
 addProtectedRoutes("/news/order", [HttpMethod.PUT]);
 addProtectedRoutes("/news/{id}/approve", [HttpMethod.PUT]);
+addProtectedRoutes("/news/{id}/active", [HttpMethod.PUT]);
 addProtectedRoutes("/news/{id}", [HttpMethod.GET, HttpMethod.PUT, HttpMethod.DELETE]);
-addProtectedRoutes("/liturgies", [HttpMethod.POST]);
-addProtectedRoutes("/liturgies/{id}", [HttpMethod.GET, HttpMethod.PUT, HttpMethod.DELETE]);
-addProtectedRoutes("/admin/settings", [HttpMethod.PUT]);
 
 backend.addOutput({
   custom: {

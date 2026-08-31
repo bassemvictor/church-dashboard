@@ -1,4 +1,4 @@
-import { CalendarDays, ChevronRight, ClipboardCheck, ExternalLink, LogOut, Megaphone, Monitor, Settings, Shield, WalletCards } from "lucide-react";
+import { ChevronRight, ClipboardCheck, ExternalLink, LogOut, Megaphone, Monitor, Settings, Shield, WalletCards } from "lucide-react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 
 import { useAuth } from "../../lib/auth";
@@ -9,7 +9,6 @@ const navItems = [
   { href: "/admin", label: "Overview", icon: Monitor },
   { href: "/admin/expenses", label: "Expenses", icon: WalletCards },
   { href: "/admin/news", label: "Church News", icon: Megaphone },
-  { href: "/admin/liturgies", label: "Liturgies", icon: CalendarDays },
   { href: "/admin/pending-approvals", label: "Pending Approvals", icon: ClipboardCheck },
   { href: "/admin/settings", label: "Settings", icon: Settings },
 ];
@@ -29,11 +28,6 @@ const pageMeta: Record<string, { section: string; title: string; description: st
     section: "Church News",
     title: "Announcements Control",
     description: "Publish, prioritize, and schedule public announcements for the church display.",
-  },
-  "/admin/liturgies": {
-    section: "Liturgies",
-    title: "Liturgy Schedule Control",
-    description: "Add, edit, and remove liturgy dates that appear on the public church news display.",
   },
   "/admin/pending-approvals": {
     section: "Pending Approval",

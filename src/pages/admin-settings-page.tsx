@@ -10,12 +10,13 @@ import { useDashboardSettings, useSaveSettings } from "../lib/church-dashboard";
 import { cn } from "../lib/utils";
 import type { DashboardSettings } from "../../shared/church-dashboard";
 
-type SettingsSection = "common" | "expenses" | "news";
+type SettingsSection = "common" | "expenses" | "news" | "liturgy";
 
 const sectionOptions: Array<{ id: SettingsSection; label: string }> = [
   { id: "common", label: "Common" },
   { id: "expenses", label: "Projects & Expenses" },
-  { id: "news", label: "Church News and Liturgies" },
+  { id: "news", label: "Church News" },
+  { id: "liturgy", label: "Liturgy Calendar" },
 ];
 
 const sectionCopy: Record<
@@ -43,11 +44,18 @@ const sectionCopy: Record<
     errorMessage: "Unable to save projects & expenses settings right now.",
   },
   news: {
-    title: "Church News and Liturgies Settings",
-    description: "Configure the public announcements screen and how many upcoming liturgies appear beside it.",
-    saveLabel: "Save news and liturgies settings",
-    successMessage: "Church news and liturgies settings saved.",
-    errorMessage: "Unable to save church news and liturgies settings right now.",
+    title: "Church News Settings",
+    description: "Configure the public announcements screen and how many liturgy items appear beside it.",
+    saveLabel: "Save news settings",
+    successMessage: "Church news settings saved.",
+    errorMessage: "Unable to save church news settings right now.",
+  },
+  liturgy: {
+    title: "Liturgy Calendar Settings",
+    description: "Connect the dashboard liturgy section to a public Google Calendar and choose how far ahead it looks.",
+    saveLabel: "Save liturgy calendar settings",
+    successMessage: "Liturgy calendar settings saved.",
+    errorMessage: "Unable to save liturgy calendar settings right now.",
   },
 };
 
@@ -116,7 +124,7 @@ export const AdminSettingsPage = () => {
 
       <div className="rounded-xl border border-[#dbe4f0] bg-white px-6 py-6 shadow-[0_18px_40px_rgba(16,33,61,0.06)]">
         <p className="text-xs font-semibold uppercase tracking-[0.28em] text-[#7a8eab]">Settings</p>
-        <h2 className="mt-2 text-3xl font-semibold text-[#112947]">Configure the public display, Projects & Expenses, and Church News with Liturgies.</h2>
+        <h2 className="mt-2 text-3xl font-semibold text-[#112947]">Configure the public display, Projects & Expenses, Church News, and the liturgy calendar feed.</h2>
       </div>
 
       <div className="-mx-1 overflow-x-auto px-1">
@@ -432,6 +440,82 @@ export const AdminSettingsPage = () => {
                   />
                   <p className="text-xs text-[#6a7f9a]">Choose between 1 and 10 upcoming liturgies. The default is 3.</p>
                 </label>
+              </CardContent>
+            </Card>
+          </>
+        ) : null}
+
+        {activeSection === "liturgy" ? (
+          <>
+            <Card className="rounded-xl border-[#dbe4f0] bg-white">
+              <CardHeader>
+                <CardTitle>Google Calendar source</CardTitle>
+                <CardDescription>
+                  When both the public calendar ID and API key are filled in, the dashboard uses Google Calendar for upcoming Divine Liturgy events.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="grid gap-4 md:grid-cols-2">
+                <label className="space-y-2">
+                  <span className="text-sm font-medium text-[#112947]">Public Google Calendar ID</span>
+                  <Input
+                    placeholder="example@group.calendar.google.com"
+                    value={draft.liturgy.googleCalendarId ?? ""}
+                    onChange={(event) =>
+                      setDraft({
+                        ...draft,
+                        liturgy: { ...draft.liturgy, googleCalendarId: event.target.value },
+                      })}
+                  />
+                  <p className="text-xs text-[#6a7f9a]">Use the public calendar ID that appears in the Google Calendar integration settings.</p>
+                </label>
+
+                <label className="space-y-2">
+                  <span className="text-sm font-medium text-[#112947]">Google Calendar API key</span>
+                  <Input
+                    placeholder="AIza..."
+                    value={draft.liturgy.googleCalendarApiKey ?? ""}
+                    onChange={(event) =>
+                      setDraft({
+                        ...draft,
+                        liturgy: { ...draft.liturgy, googleCalendarApiKey: event.target.value },
+                      })}
+                  />
+                  <p className="text-xs text-[#6a7f9a]">This key is used server-side to read the public calendar feed.</p>
+                </label>
+              </CardContent>
+            </Card>
+
+            <Card className="rounded-xl border-[#dbe4f0] bg-white">
+              <CardHeader>
+                <CardTitle>Upcoming window</CardTitle>
+                <CardDescription>Choose how far ahead the dashboard should scan for `Divine Liturgy` events in the calendar title.</CardDescription>
+              </CardHeader>
+              <CardContent className="grid gap-4 md:grid-cols-[minmax(0,18rem)_minmax(0,1fr)]">
+                <label className="max-w-[14rem] space-y-2">
+                  <span className="text-sm font-medium text-[#112947]">Look ahead (weeks)</span>
+                  <Input
+                    max={8}
+                    min={1}
+                    type="number"
+                    value={draft.liturgy.lookAheadWeeks}
+                    onChange={(event) =>
+                      setDraft({
+                        ...draft,
+                        liturgy: {
+                          ...draft.liturgy,
+                          lookAheadWeeks: Math.max(1, Math.min(8, Number(event.target.value) || 3)),
+                        },
+                      })}
+                  />
+                  <p className="text-xs text-[#6a7f9a]">Use `2` or `3` weeks for the expected setup, or choose up to `8` weeks if needed.</p>
+                </label>
+
+                <div className="rounded-2xl bg-[#f4f7fc] px-4 py-4 text-sm text-[#304964]">
+                  <p className="font-medium text-[#112947]">Calendar source</p>
+                  <p className="mt-2">
+                    The liturgy panel now uses only this public Google Calendar feed. If the calendar ID or API key is missing, no liturgies will be shown.
+                  </p>
+                </div>
               </CardContent>
             </Card>
           </>

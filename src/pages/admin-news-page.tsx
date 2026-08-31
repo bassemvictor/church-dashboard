@@ -1,4 +1,4 @@
-import { ArrowDown, ArrowUp, GripVertical, Pencil, Plus, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, Eye, EyeOff, GripVertical, Pencil, Plus, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 
@@ -20,6 +20,7 @@ import {
   useDeleteNews,
   useReorderNews,
   useSaveNews,
+  useSetNewsActive,
 } from "../lib/church-dashboard";
 import {
   getVisibilityRangeError,
@@ -311,10 +312,13 @@ export const AdminNewsPage = () => {
   const newsQuery = useAdminNews();
   const reorderMutation = useReorderNews();
   const deleteMutation = useDeleteNews();
+  const setNewsActiveMutation = useSetNewsActive();
   const [orderedNews, setOrderedNews] = useState<ChurchNews[]>([]);
   const [editingNews, setEditingNews] = useState<ChurchNews | null>(null);
   const [isEditorOpen, setIsEditorOpen] = useState(false);
   const [draggedNewsId, setDraggedNewsId] = useState<string | null>(null);
+  const [togglingNewsId, setTogglingNewsId] = useState<string | null>(null);
+  const [toggleErrorMessage, setToggleErrorMessage] = useState("");
 
   const now = new Date();
   useEffect(() => {
@@ -332,6 +336,16 @@ export const AdminNewsPage = () => {
         item.requiresApproval && getNewsApprovalStatus(item) === "PENDING" ? [] : [{ item, index }],
       ),
     [orderedNews],
+  );
+
+  const activeNews = useMemo(
+    () => manageableNews.filter((entry) => entry.item.active),
+    [manageableNews],
+  );
+
+  const inactiveNews = useMemo(
+    () => manageableNews.filter((entry) => !entry.item.active),
+    [manageableNews],
   );
 
   const totals = useMemo(() => ({
@@ -362,8 +376,37 @@ export const AdminNewsPage = () => {
     await persistOrder(reorderItems(orderedNews, fromIndex, toIndex));
   };
 
+  const toggleNewsActiveState = async (news: ChurchNews, active: boolean) => {
+    const previousItems = orderedNews;
+    const nextItems = orderedNews.map((item) => (
+      item.id === news.id ? { ...item, active } : item
+    ));
+
+    setToggleErrorMessage("");
+    setTogglingNewsId(news.id);
+    setOrderedNews(nextItems);
+
+    try {
+      await setNewsActiveMutation.mutateAsync({
+        newsId: news.id,
+        active,
+      });
+    } catch (error) {
+      setOrderedNews(previousItems);
+      setToggleErrorMessage(error instanceof Error ? error.message : "Unable to update this announcement right now.");
+    } finally {
+      setTogglingNewsId(null);
+    }
+  };
+
   return (
     <div className="space-y-6">
+      {toggleErrorMessage ? (
+        <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+          {toggleErrorMessage}
+        </div>
+      ) : null}
+
       <div className="flex justify-end">
         <Button
           className="h-10 rounded-xl px-4"
@@ -415,22 +458,22 @@ export const AdminNewsPage = () => {
 
       <Card className="rounded-xl border-[#dbe4f0] bg-white">
         <CardHeader>
-          <CardTitle>News entries</CardTitle>
-          <CardDescription>Higher priority items can still float to the top on the TV, but this order remains the base sequence.</CardDescription>
+          <CardTitle>Active news entries</CardTitle>
+          <CardDescription>Higher priority items can still float to the top on the TV, but this order remains the base sequence until you deactivate an item.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
-          {!manageableNews.length && !newsQuery.isLoading ? (
+          {!activeNews.length && !newsQuery.isLoading ? (
             <div className="rounded-3xl border border-dashed border-[#cbd8eb] bg-[#f8fbff] px-5 py-10 text-center">
-              <p className="text-lg font-semibold text-[#112947]">No announcements yet</p>
-              <p className="mt-2 text-sm text-[#556b86]">Create your first church news item to populate the public dashboard.</p>
+              <p className="text-lg font-semibold text-[#112947]">No active announcements</p>
+              <p className="mt-2 text-sm text-[#556b86]">Create a news item or reactivate one from the inactive section below.</p>
             </div>
           ) : null}
 
-          {manageableNews.map(({ item, index }) => {
+          {activeNews.map(({ item, index: originalIndex }, index) => {
             const Icon = getIconComponent(item.icon);
             const approvalStatus = getNewsApprovalStatus(item);
-            const previousItem = manageableNews[manageableNews.findIndex((entry) => entry.item.id === item.id) - 1];
-            const nextItem = manageableNews[manageableNews.findIndex((entry) => entry.item.id === item.id) + 1];
+            const previousItem = activeNews[index - 1];
+            const nextItem = activeNews[index + 1];
 
             return (
               <article
@@ -448,7 +491,7 @@ export const AdminNewsPage = () => {
                   }
 
                   const fromIndex = orderedNews.findIndex((entry) => entry.id === draggedNewsId);
-                  void moveItem(fromIndex, index);
+                  void moveItem(fromIndex, originalIndex);
                   setDraggedNewsId(null);
                 }}
               >
@@ -486,18 +529,146 @@ export const AdminNewsPage = () => {
 
                 <div className="flex flex-wrap items-start justify-end gap-2">
                   <Button
-                    onClick={() => void moveItem(index, previousItem?.index ?? index)}
+                    onClick={() => void moveItem(originalIndex, previousItem?.index ?? originalIndex)}
                     type="button"
                     variant="outline"
                   >
                     <ArrowUp className="h-4 w-4" />
                   </Button>
                   <Button
-                    onClick={() => void moveItem(index, nextItem?.index ?? index)}
+                    onClick={() => void moveItem(originalIndex, nextItem?.index ?? originalIndex)}
                     type="button"
                     variant="outline"
                   >
                     <ArrowDown className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    disabled={togglingNewsId === item.id}
+                    onClick={() => void toggleNewsActiveState(item, false)}
+                    type="button"
+                    variant="outline"
+                  >
+                    <EyeOff className="h-4 w-4" />
+                    Deactivate
+                  </Button>
+                  <Button
+                    onClick={() => {
+                      setEditingNews(item);
+                      setIsEditorOpen(true);
+                    }}
+                    type="button"
+                    variant="outline"
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    disabled={deleteMutation.isPending}
+                    onClick={() => void deleteMutation.mutateAsync(item.id)}
+                    type="button"
+                    variant="outline"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              </article>
+            );
+          })}
+        </CardContent>
+      </Card>
+
+      <Card className="rounded-xl border-[#dbe4f0] bg-white">
+        <CardHeader>
+          <CardTitle>Inactive news entries</CardTitle>
+          <CardDescription>These announcements stay off the public dashboard until you activate them again.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {!inactiveNews.length ? (
+            <div className="rounded-3xl border border-dashed border-[#cbd8eb] bg-[#f8fbff] px-5 py-8 text-center">
+              <p className="text-base font-semibold text-[#112947]">No inactive announcements</p>
+            </div>
+          ) : null}
+
+          {inactiveNews.map(({ item, index: originalIndex }, index) => {
+            const Icon = getIconComponent(item.icon);
+            const approvalStatus = getNewsApprovalStatus(item);
+            const previousItem = inactiveNews[index - 1];
+            const nextItem = inactiveNews[index + 1];
+
+            return (
+              <article
+                className="grid gap-3 rounded-xl border border-[#dbe4f0] bg-[#fbfcff] p-4 shadow-[0_12px_28px_rgba(31,42,68,0.05)] md:grid-cols-[auto_minmax(0,1fr)_auto]"
+                draggable
+                key={item.id}
+                onDragEnd={() => setDraggedNewsId(null)}
+                onDragOver={(event) => {
+                  event.preventDefault();
+                }}
+                onDragStart={() => setDraggedNewsId(item.id)}
+                onDrop={() => {
+                  if (!draggedNewsId || draggedNewsId === item.id) {
+                    return;
+                  }
+
+                  const fromIndex = orderedNews.findIndex((entry) => entry.id === draggedNewsId);
+                  void moveItem(fromIndex, originalIndex);
+                  setDraggedNewsId(null);
+                }}
+              >
+                <div className="flex items-start gap-3">
+                  <div className="flex h-11 w-11 shrink-0 cursor-grab items-center justify-center rounded-2xl bg-[#112947] text-white">
+                    <GripVertical className="h-4 w-4" />
+                  </div>
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#f8f2e7] text-[#112947]">
+                    <Icon className="h-5 w-5" />
+                  </div>
+                </div>
+
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-3">
+                    <h3 className="text-lg font-semibold text-[#112947]">{item.title}</h3>
+                    <span className="rounded-full bg-[#f8f2e7] px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-[#8d6a2f]">
+                      {newsCategoryLabels[item.category ?? "GENERAL"]}
+                    </span>
+                    <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+                      Inactive
+                    </span>
+                    {approvalStatus === "APPROVED" ? (
+                      <span className="rounded-full bg-sky-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-sky-700">
+                        Approved
+                      </span>
+                    ) : null}
+                  </div>
+                  <p className="mt-2 text-sm text-[#556b86]">{item.description || "No description provided."}</p>
+                  <div className="mt-3 flex flex-wrap gap-3 text-xs uppercase tracking-[0.18em] text-[#8d6a2f]">
+                    <span>{formatEventSummary(item.eventDate)}</span>
+                    {item.location ? <span>{item.location}</span> : null}
+                    <span>Priority {item.priority ?? 0}</span>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-start justify-end gap-2">
+                  <Button
+                    onClick={() => void moveItem(originalIndex, previousItem?.index ?? originalIndex)}
+                    type="button"
+                    variant="outline"
+                  >
+                    <ArrowUp className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    onClick={() => void moveItem(originalIndex, nextItem?.index ?? originalIndex)}
+                    type="button"
+                    variant="outline"
+                  >
+                    <ArrowDown className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    disabled={togglingNewsId === item.id}
+                    onClick={() => void toggleNewsActiveState(item, true)}
+                    type="button"
+                    variant="outline"
+                  >
+                    <Eye className="h-4 w-4" />
+                    Activate
                   </Button>
                   <Button
                     onClick={() => {
