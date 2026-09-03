@@ -1,8 +1,8 @@
-# Shepherd Hub
+# Church Dashboard
 
 ## Overview
 
-Shepherd Hub is a multi-tenant church operations app built with:
+Church Dashboard is a multi-tenant church operations app built with:
 
 - AWS Amplify Gen 2
 - Cognito authentication with email/password sign-in

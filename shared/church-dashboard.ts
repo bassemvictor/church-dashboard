@@ -64,11 +64,11 @@ export type DashboardSettings = {
     showNewsPage: boolean;
     refreshIntervalSeconds: number;
     mainViewRotationIntervalSeconds: number;
+    mainVerseText?: string;
+    mainVerseReference?: string;
   };
   expenses: {
     dashboardTitle: string;
-    mainVerseText?: string;
-    mainVerseReference?: string;
     churchWebsiteUrl?: string;
     donationUrl?: string;
     eTransferText?: string;
@@ -77,12 +77,12 @@ export type DashboardSettings = {
   news: {
     dashboardTitle: string;
     itemsPerPage: number;
-    upcomingLiturgiesCount: number;
   };
   liturgy: {
     googleCalendarId?: string;
     googleCalendarApiKey?: string;
     lookAheadWeeks: number;
+    upcomingLiturgiesCount: number;
   };
 };
 
@@ -224,12 +224,12 @@ export const defaultDashboardSettings: DashboardSettings = {
     showNewsPage: true,
     refreshIntervalSeconds: 300,
     mainViewRotationIntervalSeconds: 30,
-  },
-  expenses: {
-    dashboardTitle: "ONGOING PROJECTS & EXPENSES",
     mainVerseText:
       "Each one must give as he has decided in his heart, not reluctantly or under compulsion, for God loves a cheerful giver.",
     mainVerseReference: "2 Corinthians 9:7",
+  },
+  expenses: {
+    dashboardTitle: "ONGOING PROJECTS & EXPENSES",
     churchWebsiteUrl: "",
     donationUrl: "",
     eTransferText: "give@stmarkexample.ca",
@@ -238,12 +238,12 @@ export const defaultDashboardSettings: DashboardSettings = {
   news: {
     dashboardTitle: "CHURCH NEWS & ANNOUNCEMENTS",
     itemsPerPage: 4,
-    upcomingLiturgiesCount: 3,
   },
   liturgy: {
     googleCalendarId: "",
     googleCalendarApiKey: "",
     lookAheadWeeks: 3,
+    upcomingLiturgiesCount: 3,
   },
 };
 

@@ -79,7 +79,7 @@ export const AuthPage = () => {
       <div className="mx-auto flex min-h-[calc(100vh-3rem)] max-w-5xl items-center justify-center">
         <Card className="w-full max-w-2xl rounded-lg px-4 py-5 sm:px-6 sm:py-6">
           <div className="flex flex-col items-center text-center">
-            <img alt="Shepherd Hub logo" className="h-16 w-auto sm:h-20" src="/logo_blue.png" />
+            <img alt="Church Dashboard logo" className="h-16 w-auto sm:h-20" src="/logo_blue.png" />
             <p className="mt-4 text-2xl font-semibold tracking-tight text-slate-900 sm:text-3xl">{APP_SHORT_DISPLAY_NAME}</p>
             <h1 className="mt-4 text-3xl font-semibold tracking-tight text-balance text-slate-900 sm:text-4xl">
               {requiresNewPassword ? "Create your new password" : "Sign in to continue"}

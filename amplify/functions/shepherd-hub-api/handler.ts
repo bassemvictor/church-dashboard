@@ -391,11 +391,11 @@ const validateSettingsInput = (input: Record<string, unknown>): DashboardSetting
           "common.mainViewRotationIntervalSeconds",
           5,
         ),
+        mainVerseText: parseOptionalString(common.mainVerseText ?? expenses.mainVerseText),
+        mainVerseReference: parseOptionalString(common.mainVerseReference ?? expenses.mainVerseReference),
       },
       expenses: {
         dashboardTitle: parseRequiredString(expenses.dashboardTitle, "expenses.dashboardTitle"),
-        mainVerseText: parseOptionalString(expenses.mainVerseText),
-        mainVerseReference: parseOptionalString(expenses.mainVerseReference),
         churchWebsiteUrl: parseOptionalString(expenses.churchWebsiteUrl),
         donationUrl: parseOptionalString(expenses.donationUrl),
         eTransferText: parseOptionalString(expenses.eTransferText),
@@ -404,12 +404,6 @@ const validateSettingsInput = (input: Record<string, unknown>): DashboardSetting
       news: {
         dashboardTitle: parseRequiredString(news.dashboardTitle, "news.dashboardTitle"),
         itemsPerPage: parsePositiveNumber(news.itemsPerPage, "news.itemsPerPage", 1),
-        upcomingLiturgiesCount: parseIntegerInRange(
-          news.upcomingLiturgiesCount ?? defaultDashboardSettings.news.upcomingLiturgiesCount,
-          "news.upcomingLiturgiesCount",
-          1,
-          10,
-        ),
       },
       liturgy: {
         googleCalendarId: parseOptionalString(liturgy.googleCalendarId),
@@ -419,6 +413,14 @@ const validateSettingsInput = (input: Record<string, unknown>): DashboardSetting
           "liturgy.lookAheadWeeks",
           1,
           8,
+        ),
+        upcomingLiturgiesCount: parseIntegerInRange(
+          liturgy.upcomingLiturgiesCount ??
+            news.upcomingLiturgiesCount ??
+            defaultDashboardSettings.liturgy.upcomingLiturgiesCount,
+          "liturgy.upcomingLiturgiesCount",
+          1,
+          10,
         ),
       },
     };
@@ -440,11 +442,11 @@ const validateSettingsInput = (input: Record<string, unknown>): DashboardSetting
         "mainViewRotationIntervalSeconds",
         5,
       ),
+      mainVerseText: parseOptionalString(input.mainVerseText),
+      mainVerseReference: parseOptionalString(input.mainVerseReference),
     },
     expenses: {
       dashboardTitle: parseRequiredString(input.dashboardTitle, "dashboardTitle"),
-      mainVerseText: parseOptionalString(input.mainVerseText),
-      mainVerseReference: parseOptionalString(input.mainVerseReference),
       churchWebsiteUrl: parseOptionalString(input.churchWebsiteUrl),
       donationUrl: parseOptionalString(input.donationUrl),
       eTransferText: parseOptionalString(input.eTransferText),
@@ -460,12 +462,6 @@ const validateSettingsInput = (input: Record<string, unknown>): DashboardSetting
         "newsItemsPerPage",
         1,
       ),
-      upcomingLiturgiesCount: parseIntegerInRange(
-        input.upcomingLiturgiesCount ?? defaultDashboardSettings.news.upcomingLiturgiesCount,
-        "upcomingLiturgiesCount",
-        1,
-        10,
-      ),
     },
     liturgy: {
       googleCalendarId: parseOptionalString(input.liturgyGoogleCalendarId),
@@ -475,6 +471,12 @@ const validateSettingsInput = (input: Record<string, unknown>): DashboardSetting
         "liturgyLookAheadWeeks",
         1,
         8,
+      ),
+      upcomingLiturgiesCount: parseIntegerInRange(
+        input.upcomingLiturgiesCount ?? defaultDashboardSettings.liturgy.upcomingLiturgiesCount,
+        "upcomingLiturgiesCount",
+        1,
+        10,
       ),
     },
   };
@@ -486,6 +488,13 @@ const sanitizeDashboardSettings = (settings?: Partial<DashboardSettings> | Legac
   const expenses = isRecord(legacy.expenses) ? legacy.expenses : {};
   const news = isRecord(legacy.news) ? legacy.news : {};
   const liturgy = isRecord(legacy.liturgy) ? legacy.liturgy : {};
+  const legacyExpenseSettings = expenses as Record<string, unknown>;
+  const legacyNewsSettings = news as Record<string, unknown>;
+  const legacyNewsUpcomingLiturgiesCount = legacyNewsSettings.upcomingLiturgiesCount;
+  const newsUpcomingLiturgiesCount =
+    typeof legacyNewsUpcomingLiturgiesCount === "number"
+      ? Math.max(1, Math.min(10, Math.floor(legacyNewsUpcomingLiturgiesCount)))
+      : undefined;
 
   return {
     common: {
@@ -508,20 +517,24 @@ const sanitizeDashboardSettings = (settings?: Partial<DashboardSettings> | Legac
         typeof common.mainViewRotationIntervalSeconds === "number"
           ? common.mainViewRotationIntervalSeconds
           : legacy.mainViewRotationIntervalSeconds ?? legacy.rotationIntervalSeconds ?? defaultDashboardSettings.common.mainViewRotationIntervalSeconds,
+      mainVerseText:
+        typeof common.mainVerseText === "string"
+          ? common.mainVerseText
+          : typeof legacyExpenseSettings.mainVerseText === "string"
+            ? legacyExpenseSettings.mainVerseText
+            : legacy.mainVerseText ?? defaultDashboardSettings.common.mainVerseText,
+      mainVerseReference:
+        typeof common.mainVerseReference === "string"
+          ? common.mainVerseReference
+          : typeof legacyExpenseSettings.mainVerseReference === "string"
+            ? legacyExpenseSettings.mainVerseReference
+            : legacy.mainVerseReference ?? defaultDashboardSettings.common.mainVerseReference,
     },
     expenses: {
       dashboardTitle:
         typeof expenses.dashboardTitle === "string"
           ? expenses.dashboardTitle
           : legacy.dashboardTitle ?? defaultDashboardSettings.expenses.dashboardTitle,
-      mainVerseText:
-        typeof expenses.mainVerseText === "string"
-          ? expenses.mainVerseText
-          : legacy.mainVerseText ?? defaultDashboardSettings.expenses.mainVerseText,
-      mainVerseReference:
-        typeof expenses.mainVerseReference === "string"
-          ? expenses.mainVerseReference
-          : legacy.mainVerseReference ?? defaultDashboardSettings.expenses.mainVerseReference,
       churchWebsiteUrl:
         typeof expenses.churchWebsiteUrl === "string"
           ? expenses.churchWebsiteUrl
@@ -548,12 +561,6 @@ const sanitizeDashboardSettings = (settings?: Partial<DashboardSettings> | Legac
         typeof news.itemsPerPage === "number"
           ? news.itemsPerPage
           : legacy.newsItemsPerPage ?? legacy.itemsPerPage ?? defaultDashboardSettings.news.itemsPerPage,
-      upcomingLiturgiesCount:
-        typeof news.upcomingLiturgiesCount === "number"
-          ? Math.max(1, Math.min(10, Math.floor(news.upcomingLiturgiesCount)))
-          : typeof legacy.upcomingLiturgiesCount === "number"
-            ? Math.max(1, Math.min(10, Math.floor(legacy.upcomingLiturgiesCount)))
-            : defaultDashboardSettings.news.upcomingLiturgiesCount,
     },
     liturgy: {
       googleCalendarId:
@@ -570,6 +577,14 @@ const sanitizeDashboardSettings = (settings?: Partial<DashboardSettings> | Legac
           : typeof legacy.liturgyLookAheadWeeks === "number"
             ? Math.max(1, Math.min(8, Math.floor(legacy.liturgyLookAheadWeeks)))
             : defaultDashboardSettings.liturgy.lookAheadWeeks,
+      upcomingLiturgiesCount:
+        typeof liturgy.upcomingLiturgiesCount === "number"
+          ? Math.max(1, Math.min(10, Math.floor(liturgy.upcomingLiturgiesCount)))
+          : typeof newsUpcomingLiturgiesCount === "number"
+            ? newsUpcomingLiturgiesCount
+            : typeof legacy.upcomingLiturgiesCount === "number"
+              ? Math.max(1, Math.min(10, Math.floor(legacy.upcomingLiturgiesCount)))
+              : defaultDashboardSettings.liturgy.upcomingLiturgiesCount,
     },
   };
 };

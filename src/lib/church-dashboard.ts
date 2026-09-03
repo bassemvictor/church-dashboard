@@ -491,7 +491,7 @@ export const getSanitizedItemsPerPage = (value?: number) =>
 
 export const getSanitizedUpcomingLiturgiesCount = (value?: number) => {
   if (!Number.isFinite(value ?? Number.NaN)) {
-    return defaultDashboardSettings.news.upcomingLiturgiesCount;
+    return defaultDashboardSettings.liturgy.upcomingLiturgiesCount;
   }
 
   return Math.max(1, Math.min(10, Math.floor(value as number)));

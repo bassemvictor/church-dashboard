@@ -59,7 +59,7 @@ export const AdminLayout = () => {
         <aside className="hidden w-72 shrink-0 bg-[#152b4c] text-white lg:flex lg:flex-col">
           <div className="border-b border-white/10 px-6 py-5">
             <p className="text-[11px] uppercase tracking-[0.28em] text-blue-200/65">SGSA</p>
-            <h1 className="mt-2 text-[2rem] font-semibold leading-none tracking-tight">Shepherd Hub</h1>
+            <h1 className="mt-2 text-[2rem] font-semibold leading-none tracking-tight">Church Dashboard</h1>
             <p className="mt-2 text-sm text-blue-100/70">Church Dashboard Admin</p>
           </div>
 

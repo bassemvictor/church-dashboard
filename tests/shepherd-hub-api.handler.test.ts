@@ -8736,11 +8736,11 @@ test("dashboard settings strip legacy generosity fields from responses and saved
         showDate: true,
         refreshIntervalSeconds: 300,
         mainViewRotationIntervalSeconds: 30,
+        mainVerseText: "Verse",
+        mainVerseReference: "Ref",
       },
       expenses: {
         dashboardTitle: "Projects",
-        mainVerseText: "Verse",
-        mainVerseReference: "Ref",
         donationUrl: "https://example.com/give",
         eTransferText: "give@example.com",
         itemsPerPage: 4,
@@ -8748,6 +8748,12 @@ test("dashboard settings strip legacy generosity fields from responses and saved
       news: {
         dashboardTitle: "Church News",
         itemsPerPage: 5,
+      },
+      liturgy: {
+        googleCalendarId: "",
+        googleCalendarApiKey: "",
+        lookAheadWeeks: 3,
+        upcomingLiturgiesCount: 3,
       },
     },
   });
@@ -8762,11 +8768,11 @@ test("dashboard settings strip legacy generosity fields from responses and saved
           showDate: true,
           refreshIntervalSeconds: 300,
           mainViewRotationIntervalSeconds: 30,
+          mainVerseText: "Verse",
+          mainVerseReference: "Ref",
         },
         expenses: {
           dashboardTitle: "Projects",
-          mainVerseText: "Verse",
-          mainVerseReference: "Ref",
           donationUrl: "https://example.com/give",
           eTransferText: "give@example.com",
           itemsPerPage: 4,
@@ -8774,6 +8780,12 @@ test("dashboard settings strip legacy generosity fields from responses and saved
         news: {
           dashboardTitle: "Church News",
           itemsPerPage: 5,
+        },
+        liturgy: {
+          googleCalendarId: "",
+          googleCalendarApiKey: "",
+          lookAheadWeeks: 3,
+          upcomingLiturgiesCount: 3,
         },
       }),
       requestContext: {
@@ -8806,11 +8818,11 @@ test("dashboard settings strip legacy generosity fields from responses and saved
       showDate: true,
       refreshIntervalSeconds: 300,
       mainViewRotationIntervalSeconds: 30,
+      mainVerseText: "Verse",
+      mainVerseReference: "Ref",
     },
     expenses: {
       dashboardTitle: "Projects",
-      mainVerseText: "Verse",
-      mainVerseReference: "Ref",
       donationUrl: "https://example.com/give",
       eTransferText: "give@example.com",
       itemsPerPage: 4,
@@ -8818,6 +8830,12 @@ test("dashboard settings strip legacy generosity fields from responses and saved
     news: {
       dashboardTitle: "Church News",
       itemsPerPage: 5,
+    },
+    liturgy: {
+      googleCalendarId: "",
+      googleCalendarApiKey: "",
+      lookAheadWeeks: 3,
+      upcomingLiturgiesCount: 3,
     },
   });
   assert.equal("generosityTitle" in ((savedSettingsItem?.settings as Record<string, unknown> | undefined) ?? {}), false);

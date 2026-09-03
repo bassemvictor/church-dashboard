@@ -38,21 +38,21 @@ const sectionCopy: Record<
   },
   expenses: {
     title: "Projects & Expenses Settings",
-    description: "Configure the projects display, verse area, and giving information shown on the expenses screen.",
+    description: "Configure the projects display and giving information shown on the expenses screen.",
     saveLabel: "Save projects settings",
     successMessage: "Projects & expenses settings saved.",
     errorMessage: "Unable to save projects & expenses settings right now.",
   },
   news: {
     title: "Church News Settings",
-    description: "Configure the public announcements screen and how many liturgy items appear beside it.",
+    description: "Configure the public announcements screen.",
     saveLabel: "Save news settings",
     successMessage: "Church news settings saved.",
     errorMessage: "Unable to save church news settings right now.",
   },
   liturgy: {
     title: "Liturgy Calendar Settings",
-    description: "Connect the dashboard liturgy section to a public Google Calendar and choose how far ahead it looks.",
+    description: "Connect the dashboard liturgy section to a public Google Calendar, choose how far ahead it looks, and control how many upcoming liturgies appear.",
     saveLabel: "Save liturgy calendar settings",
     successMessage: "Liturgy calendar settings saved.",
     errorMessage: "Unable to save liturgy calendar settings right now.",
@@ -183,6 +183,37 @@ export const AdminSettingsPage = () => {
 
             <Card className="rounded-xl border-[#dbe4f0] bg-white">
               <CardHeader>
+                <CardTitle>Scripture verse</CardTitle>
+                <CardDescription>Verse content shown in the public dashboard header.</CardDescription>
+              </CardHeader>
+              <CardContent className="grid gap-4 md:grid-cols-2">
+                <label className="space-y-2 md:col-span-2">
+                  <span className="text-sm font-medium text-[#112947]">Verse text</span>
+                  <Textarea
+                    value={draft.common.mainVerseText ?? ""}
+                    onChange={(event) =>
+                      setDraft({
+                        ...draft,
+                        common: { ...draft.common, mainVerseText: event.target.value },
+                      })}
+                  />
+                </label>
+                <label className="space-y-2">
+                  <span className="text-sm font-medium text-[#112947]">Verse reference</span>
+                  <Input
+                    value={draft.common.mainVerseReference ?? ""}
+                    onChange={(event) =>
+                      setDraft({
+                        ...draft,
+                        common: { ...draft.common, mainVerseReference: event.target.value },
+                      })}
+                  />
+                </label>
+              </CardContent>
+            </Card>
+
+            <Card className="rounded-xl border-[#dbe4f0] bg-white">
+              <CardHeader>
                 <CardTitle>Public display</CardTitle>
                 <CardDescription>Global timing and information shown regardless of which screen is active.</CardDescription>
               </CardHeader>
@@ -292,32 +323,10 @@ export const AdminSettingsPage = () => {
 
             <Card className="rounded-xl border-[#dbe4f0] bg-white">
               <CardHeader>
-                <CardTitle>Verse & giving information</CardTitle>
-                <CardDescription>Content used in the projects header and footer.</CardDescription>
+                <CardTitle>Giving information</CardTitle>
+                <CardDescription>Donation information shown in the projects footer.</CardDescription>
               </CardHeader>
               <CardContent className="grid gap-4 md:grid-cols-2">
-                <label className="space-y-2 md:col-span-2">
-                  <span className="text-sm font-medium text-[#112947]">Main verse text</span>
-                  <Textarea
-                    value={draft.expenses.mainVerseText ?? ""}
-                    onChange={(event) =>
-                      setDraft({
-                        ...draft,
-                        expenses: { ...draft.expenses, mainVerseText: event.target.value },
-                      })}
-                  />
-                </label>
-                <label className="space-y-2">
-                  <span className="text-sm font-medium text-[#112947]">Main verse reference</span>
-                  <Input
-                    value={draft.expenses.mainVerseReference ?? ""}
-                    onChange={(event) =>
-                      setDraft({
-                        ...draft,
-                        expenses: { ...draft.expenses, mainVerseReference: event.target.value },
-                      })}
-                  />
-                </label>
                 <label className="space-y-2">
                   <span className="text-sm font-medium text-[#112947]">Church website URL</span>
                   <Input
@@ -404,7 +413,7 @@ export const AdminSettingsPage = () => {
             <Card className="rounded-xl border-[#dbe4f0] bg-white">
               <CardHeader>
                 <CardTitle>Display settings</CardTitle>
-                <CardDescription>How many announcements and upcoming liturgies the public screen shows.</CardDescription>
+                <CardDescription>How many announcements the public screen shows.</CardDescription>
               </CardHeader>
               <CardContent className="grid gap-4 md:grid-cols-2">
                 <label className="max-w-[14rem] space-y-2">
@@ -420,25 +429,6 @@ export const AdminSettingsPage = () => {
                       })}
                   />
                   <p className="text-xs text-[#6a7f9a]">Maximum number of announcements shown on one screen.</p>
-                </label>
-
-                <label className="max-w-[18rem] space-y-2">
-                  <span className="text-sm font-medium text-[#112947]">Number of upcoming liturgies to display</span>
-                  <Input
-                    max={10}
-                    min={1}
-                    type="number"
-                    value={draft.news.upcomingLiturgiesCount}
-                    onChange={(event) =>
-                      setDraft({
-                        ...draft,
-                        news: {
-                          ...draft.news,
-                          upcomingLiturgiesCount: Math.max(1, Math.min(10, Number(event.target.value) || 3)),
-                        },
-                      })}
-                  />
-                  <p className="text-xs text-[#6a7f9a]">Choose between 1 and 10 upcoming liturgies. The default is 3.</p>
                 </label>
               </CardContent>
             </Card>
@@ -488,7 +478,6 @@ export const AdminSettingsPage = () => {
             <Card className="rounded-xl border-[#dbe4f0] bg-white">
               <CardHeader>
                 <CardTitle>Upcoming window</CardTitle>
-                <CardDescription>Choose how far ahead the dashboard should scan for `Divine Liturgy` events in the calendar title.</CardDescription>
               </CardHeader>
               <CardContent className="grid gap-4 md:grid-cols-[minmax(0,18rem)_minmax(0,1fr)]">
                 <label className="max-w-[14rem] space-y-2">
@@ -510,11 +499,25 @@ export const AdminSettingsPage = () => {
                   <p className="text-xs text-[#6a7f9a]">Use `2` or `3` weeks for the expected setup, or choose up to `8` weeks if needed.</p>
                 </label>
 
-                <div className="rounded-2xl bg-[#f4f7fc] px-4 py-4 text-sm text-[#304964]">
-                  <p className="font-medium text-[#112947]">Calendar source</p>
-                  <p className="mt-2">
-                    The liturgy panel now uses only this public Google Calendar feed. If the calendar ID or API key is missing, no liturgies will be shown.
-                  </p>
+                <div className="space-y-4">
+                  <label className="block max-w-[18rem] space-y-2">
+                    <span className="text-sm font-medium text-[#112947]">Number of upcoming liturgies to display</span>
+                    <Input
+                      max={10}
+                      min={1}
+                      type="number"
+                      value={draft.liturgy.upcomingLiturgiesCount}
+                      onChange={(event) =>
+                        setDraft({
+                          ...draft,
+                          liturgy: {
+                            ...draft.liturgy,
+                            upcomingLiturgiesCount: Math.max(1, Math.min(10, Number(event.target.value) || 3)),
+                          },
+                        })}
+                    />
+                    <p className="text-xs text-[#6a7f9a]">Choose between 1 and 10 upcoming liturgies. The default is 3.</p>
+                  </label>
                 </div>
               </CardContent>
             </Card>

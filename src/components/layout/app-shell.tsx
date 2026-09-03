@@ -97,7 +97,7 @@ export const AppShell = () => {
           <div className="flex min-h-full flex-col">
             <div className="mb-4 flex items-start justify-between gap-3">
               <div className="flex min-w-0 items-center gap-2.5">
-                <img alt="Shepherd Hub logo" className="h-10 w-10 shrink-0 object-contain" src="/logo_bw.png" />
+                <img alt="Church Dashboard logo" className="h-10 w-10 shrink-0 object-contain" src="/logo_bw.png" />
                 <div className="min-w-0 pt-0.5">
                   <p className="text-[10px] uppercase tracking-[0.18em] text-blue-200/80">
                     {user?.tenantId ?? "No Tenant Assigned"}

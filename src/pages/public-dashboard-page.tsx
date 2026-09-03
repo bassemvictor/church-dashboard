@@ -305,7 +305,11 @@ const DashboardHeader = ({
               return (
                 <h1 className="text-[clamp(1.55rem,2.5vw,3rem)] font-semibold leading-[1.07] tracking-[-0.03em] text-[#102f50]">
                   <span className="block whitespace-nowrap">{title}</span>
-                  {subtitle ? <span className="block whitespace-nowrap text-[0.72em]">{subtitle}</span> : null}
+                  {subtitle ? (
+                    <span className="block whitespace-nowrap font-['Helvetica_Neue',Arial,sans-serif] text-[0.62em] font-normal tracking-normal text-[#b88734]">
+                      {subtitle}
+                    </span>
+                  ) : null}
                 </h1>
               );
             })()}
@@ -355,8 +359,8 @@ const DashboardHeader = ({
             </Link>
           ) : null}
 
-          <div className="flex min-w-0 flex-wrap items-center justify-start gap-3 sm:justify-end">
-            <div className="flex flex-wrap items-center justify-end gap-2">
+          <div className="flex min-w-0 flex-nowrap items-center justify-start gap-3 sm:justify-end">
+            <div className="flex shrink-0 items-center justify-end gap-2">
               <DashboardQrCode
                 alt="Church website QR code"
                 containerClassName="flex flex-col items-center gap-1 rounded-[1.1rem] border border-[#d6c4a4] bg-[#fffaf0]/95 p-2 text-center shadow-[0_10px_24px_rgba(16,47,80,0.08)]"
@@ -374,8 +378,8 @@ const DashboardHeader = ({
             </div>
             <img
               alt="Church logo"
-              className="h-auto w-full max-w-[clamp(78px,7vw,104px)] object-contain drop-shadow-[0_14px_24px_rgba(16,47,80,0.28)]"
-              src="/church-logo.avif"
+              className="h-auto w-[clamp(120px,12vw,125px)] shrink-0 object-contain drop-shadow-[0_14px_24px_rgba(16,47,80,0.28)]"
+              src="/sgsa-logo-gold-dark.svg"
             />
           </div>
         </div>
@@ -626,7 +630,7 @@ export const PublicDashboardPage = () => {
   const showAdminShortcut = status === "authenticated" && !!user && isAdminUser(user.groups);
   const projectItemsPerPage = getSanitizedItemsPerPage(settings.expenses.itemsPerPage);
   const newsItemsPerPage = getSanitizedItemsPerPage(settings.news.itemsPerPage);
-  const upcomingLiturgiesCount = getSanitizedUpcomingLiturgiesCount(settings.news.upcomingLiturgiesCount);
+  const upcomingLiturgiesCount = getSanitizedUpcomingLiturgiesCount(settings.liturgy.upcomingLiturgiesCount);
   const rotationIntervalSeconds = getSanitizedRotationIntervalSeconds(settings.common.mainViewRotationIntervalSeconds);
   const refreshIntervalSeconds = getSanitizedRefreshIntervalSeconds(settings.common.refreshIntervalSeconds);
   const projectPageCount = Math.max(1, Math.ceil(visibleProjects.length / projectItemsPerPage));
@@ -806,8 +810,8 @@ export const PublicDashboardPage = () => {
           showClock={settings.common.showClock}
           showDate={settings.common.showDate}
           showAdminShortcut={showAdminShortcut}
-          verseReference={settings.expenses.mainVerseReference}
-          verseText={settings.expenses.mainVerseText}
+          verseReference={settings.common.mainVerseReference}
+          verseText={settings.common.mainVerseText}
         />
 
         <section className="mt-3 flex min-h-0 flex-1 flex-col rounded-[2rem] border border-[#e6d7bb] bg-white/78 px-3 py-4 shadow-[0_30px_70px_rgba(31,42,68,0.08)] lg:px-5">
