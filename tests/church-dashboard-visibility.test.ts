@@ -13,26 +13,14 @@ test("normalizeDateValue stores visible-until dates at the end of the local day"
   );
 });
 
-test("isExpenseVisible keeps legacy UTC-midnight visibleUntil records visible through the full local day", () => {
+test("isExpenseVisible respects the stored visibility timestamp", () => {
   const visible = churchDashboard.isExpenseVisible({
     active: true,
     visibleFrom: "2026-08-27T00:00:00.000Z",
     visibleUntil: "2026-08-30T00:00:00.000Z",
     requiresApproval: true,
     approvalStatus: "APPROVED",
-  }, "2026-08-30T01:25:40.000Z");
-
-  assert.equal(visible, true);
-});
-
-test("isExpenseVisible hides legacy UTC-midnight visibleUntil records after the local day ends", () => {
-  const visible = churchDashboard.isExpenseVisible({
-    active: true,
-    visibleFrom: "2026-08-27T00:00:00.000Z",
-    visibleUntil: "2026-08-30T00:00:00.000Z",
-    requiresApproval: true,
-    approvalStatus: "APPROVED",
-  }, "2026-08-31T04:00:00.000Z");
+  }, "2026-08-30T00:00:00.001Z");
 
   assert.equal(visible, false);
 });

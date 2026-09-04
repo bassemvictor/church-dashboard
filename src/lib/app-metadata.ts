@@ -1,5 +1,4 @@
 export const APP_NAME = "Church Dashboard";
 export const APP_VERSION = "v0.3.0";
 export const APP_SHORT_VERSION = APP_VERSION.replace(/\.\d+$/, "");
-export const APP_DISPLAY_NAME = `${APP_NAME} ${APP_VERSION}`;
 export const APP_SHORT_DISPLAY_NAME = `${APP_NAME} ${APP_SHORT_VERSION}`;

@@ -66,19 +66,6 @@ const normalizeGroupEntries = (rawGroups: unknown): string[] => {
     return [];
   }
 
-  if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
-    try {
-      const parsed = JSON.parse(trimmed);
-      return Array.isArray(parsed) ? normalizeGroupEntries(parsed) : [];
-    } catch {
-      const unwrapped = trimmed.slice(1, -1).trim();
-      return unwrapped
-        .split(/[,\s]+/)
-        .map((group) => group.trim().replace(/^['"]|['"]$/g, "").toLowerCase())
-        .filter(Boolean);
-    }
-  }
-
   return trimmed
     .split(trimmed.includes(",") ? "," : /\s+/)
     .map((group) => group.trim().replace(/^['"]|['"]$/g, "").toLowerCase())
@@ -91,9 +78,6 @@ const normalizeGroups = (rawGroups: unknown): AppCognitoGroup[] => {
 
 export const hasAnyGroup = (groups: readonly AppCognitoGroup[], allowedGroups: readonly AppCognitoGroup[]) =>
   allowedGroups.some((group) => groups.includes(group));
-
-export const canManageAccess = (groups: readonly AppCognitoGroup[]) =>
-  hasAnyGroup(groups, ["admin"]);
 
 export const isAdminUser = (groups: readonly AppCognitoGroup[]) =>
   hasAnyGroup(groups, ["admin"]);
@@ -108,9 +92,7 @@ const buildUserFromSession = async (): Promise<AppAuthUser | null> => {
   const tenantId =
     typeof payload["custom:tenantId"] === "string" && payload["custom:tenantId"].trim()
       ? payload["custom:tenantId"].trim()
-      : typeof payload["custom:tenant_id"] === "string" && payload["custom:tenant_id"].trim()
-        ? payload["custom:tenant_id"].trim()
-        : null;
+      : null;
 
   return {
     id: currentUser.userId,
@@ -213,11 +195,3 @@ export const useAuth = () => {
 
   return value;
 };
-
-export const groupLabelMap: Record<string, string> = {
-  admin: "Admin",
-  priest: "Priest",
-  servant: "Servant",
-};
-
-export const formatGroupLabel = (group: string) => groupLabelMap[group] ?? group;

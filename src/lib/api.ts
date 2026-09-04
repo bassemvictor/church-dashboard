@@ -14,43 +14,6 @@ export class ApiError extends Error {
   }
 }
 
-const googleCalendarReconnectUiMessage =
-  "Reconnect Google Calendar: Google Calendar connection has expired because the app is currently in TEST mode. Google requires TEST applications to reconnect every 7 days. Once the app is released, this will no longer be required.";
-const householdConflictWriteUiMessage =
-  "This household could not be updated because the address or membership changed at the same time. Please refresh and try again.";
-
-const isExpiredGoogleRefreshTokenMessage = (message: string) => {
-  const normalized = message.toLowerCase();
-  return (
-    normalized.includes("unable to refresh google token") ||
-    normalized.includes("google calendar connection expired or was revoked") ||
-    (normalized.includes("invalid_grant") && normalized.includes("expired or revoked"))
-  );
-};
-
-const isHouseholdConflictWriteMessage = (message: string) => {
-  const normalized = message.toLowerCase();
-  return (
-    normalized === "cancellederror"
-    || normalized === "cancelederror"
-    || normalized.includes("transactioncanceledexception")
-    || normalized.includes("conditionalcheckfailedexception")
-  );
-};
-
-export const getDisplayErrorMessage = (reason: unknown, fallback: string) => {
-  const message = reason instanceof Error ? reason.message : fallback;
-  if (isExpiredGoogleRefreshTokenMessage(message)) {
-    return googleCalendarReconnectUiMessage;
-  }
-
-  if (isHouseholdConflictWriteMessage(message)) {
-    return householdConflictWriteUiMessage;
-  }
-
-  return message;
-};
-
 type AmplifyOutputs = {
   custom?: {
     API?: {
@@ -63,8 +26,6 @@ type AmplifyOutputs = {
 
 const configuredApiEndpoint = (outputs as AmplifyOutputs).custom?.API?.shepherdHubApi?.endpoint ?? "";
 const baseUrl = (configuredApiEndpoint || import.meta.env.VITE_API_BASE_URL || "").replace(/\/+$/, "");
-
-export const isApiConfigured = Boolean(baseUrl);
 
 const buildUrl = (path: string) => {
   if (!baseUrl) {

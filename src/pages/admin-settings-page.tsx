@@ -1,6 +1,6 @@
 import { useEffect, useState, type Dispatch, type SetStateAction } from "react";
 
-import { ToastStack, type ToastItem } from "./calendar-shared";
+import { ToastStack, type ToastItem } from "../components/common/toast-stack";
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
 import { Checkbox } from "../components/ui/checkbox";

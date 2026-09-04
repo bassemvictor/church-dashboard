@@ -249,10 +249,9 @@ export const defaultDashboardSettings: DashboardSettings = {
 
 const resolveNow = (now: Date | string | number) => (now instanceof Date ? now : new Date(now));
 const dateOnlyPattern = /^(\d{4})-(\d{2})-(\d{2})$/;
-const legacyUtcMidnightPattern = /^(\d{4})-(\d{2})-(\d{2})T00:00:00(?:\.000)?Z$/;
 
 const resolveVisibilityBoundaryTime = (value: string, boundary: "start" | "end") => {
-  const matchedDateOnly = value.match(dateOnlyPattern) ?? value.match(legacyUtcMidnightPattern);
+  const matchedDateOnly = value.match(dateOnlyPattern);
   if (matchedDateOnly) {
     const [, year, month, day] = matchedDateOnly;
     const date = boundary === "end"

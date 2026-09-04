@@ -32,7 +32,6 @@ import {
   type ChurchExpenseStatus,
   type CreateChurchNewsInput,
   type CreateChurchExpenseInput,
-  type DashboardSettings,
   type DashboardSettingsResponse,
   type ExpenseListResponse,
   type NewsListResponse,
@@ -221,28 +220,6 @@ const resolveExpenseImageUrls = async (items: ChurchExpense[]) =>
       }
     }),
   );
-
-export const usePublicExpenses = (refreshIntervalSeconds: number) =>
-  useQuery({
-    queryKey: ["public-expenses"],
-    queryFn: async () => {
-      const response = await api.get<ExpenseListResponse>("/expenses");
-      return resolveExpenseImageUrls(response.items);
-    },
-    refetchInterval: refreshIntervalSeconds * 1000,
-    placeholderData: (previous) => previous,
-  });
-
-export const usePublicNews = (refreshIntervalSeconds: number) =>
-  useQuery({
-    queryKey: ["public-news"],
-    queryFn: async () => {
-      const response = await api.get<NewsListResponse>("/news");
-      return response.items;
-    },
-    refetchInterval: refreshIntervalSeconds * 1000,
-    placeholderData: (previous) => previous,
-  });
 
 export const usePublicDashboard = () =>
   useQuery({

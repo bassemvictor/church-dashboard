@@ -77,34 +77,6 @@ type SettingsItem = BaseItem & {
   settings: DashboardSettings;
 };
 
-type LegacyDashboardSettings = {
-  churchName?: string;
-  dashboardTitle?: string;
-  mainVerseText?: string;
-  mainVerseReference?: string;
-  churchWebsiteUrl?: string;
-  donationUrl?: string;
-  eTransferText?: string;
-  showClock?: boolean;
-  showDate?: boolean;
-  showExpensesPage?: boolean;
-  showNewsPage?: boolean;
-  refreshIntervalSeconds?: number;
-  rotationIntervalSeconds?: number;
-  mainViewRotationIntervalSeconds?: number;
-  itemsPerPage?: number;
-  newsDashboardTitle?: string;
-  newsItemsPerPage?: number;
-  upcomingLiturgiesCount?: number;
-  liturgyGoogleCalendarId?: string;
-  liturgyGoogleCalendarApiKey?: string;
-  liturgyLookAheadWeeks?: number;
-  common?: Partial<DashboardSettings["common"]>;
-  expenses?: Partial<DashboardSettings["expenses"]>;
-  news?: Partial<DashboardSettings["news"]>;
-  liturgy?: Partial<DashboardSettings["liturgy"]>;
-};
-
 type NewsItem = BaseItem & {
   id: string;
   title: string;
@@ -372,109 +344,50 @@ const validateExpenseInput = (input: Record<string, unknown>): CreateChurchExpen
 };
 
 const validateSettingsInput = (input: Record<string, unknown>): DashboardSettings => {
-  if ("common" in input || "expenses" in input || "news" in input || "liturgy" in input) {
-    const common = parseObject(input.common, "common");
-    const expenses = parseObject(input.expenses, "expenses");
-    const news = parseObject(input.news, "news");
-    const liturgy = parseObject(input.liturgy, "liturgy");
-
-    return {
-      common: {
-        churchName: parseRequiredString(common.churchName, "common.churchName"),
-        showClock: parseBoolean(common.showClock, "common.showClock"),
-        showDate: parseBoolean(common.showDate, "common.showDate"),
-        showExpensesPage: parseBoolean(common.showExpensesPage, "common.showExpensesPage"),
-        showNewsPage: parseBoolean(common.showNewsPage, "common.showNewsPage"),
-        refreshIntervalSeconds: parsePositiveNumber(common.refreshIntervalSeconds, "common.refreshIntervalSeconds", 15),
-        mainViewRotationIntervalSeconds: parsePositiveNumber(
-          common.mainViewRotationIntervalSeconds,
-          "common.mainViewRotationIntervalSeconds",
-          5,
-        ),
-        mainVerseText: parseOptionalString(common.mainVerseText ?? expenses.mainVerseText),
-        mainVerseReference: parseOptionalString(common.mainVerseReference ?? expenses.mainVerseReference),
-      },
-      expenses: {
-        dashboardTitle: parseRequiredString(expenses.dashboardTitle, "expenses.dashboardTitle"),
-        churchWebsiteUrl: parseOptionalString(expenses.churchWebsiteUrl),
-        donationUrl: parseOptionalString(expenses.donationUrl),
-        eTransferText: parseOptionalString(expenses.eTransferText),
-        itemsPerPage: parsePositiveNumber(expenses.itemsPerPage, "expenses.itemsPerPage", 1),
-      },
-      news: {
-        dashboardTitle: parseRequiredString(news.dashboardTitle, "news.dashboardTitle"),
-        itemsPerPage: parsePositiveNumber(news.itemsPerPage, "news.itemsPerPage", 1),
-      },
-      liturgy: {
-        googleCalendarId: parseOptionalString(liturgy.googleCalendarId),
-        googleCalendarApiKey: parseOptionalString(liturgy.googleCalendarApiKey),
-        lookAheadWeeks: parseIntegerInRange(
-          liturgy.lookAheadWeeks ?? defaultDashboardSettings.liturgy.lookAheadWeeks,
-          "liturgy.lookAheadWeeks",
-          1,
-          8,
-        ),
-        upcomingLiturgiesCount: parseIntegerInRange(
-          liturgy.upcomingLiturgiesCount ??
-            news.upcomingLiturgiesCount ??
-            defaultDashboardSettings.liturgy.upcomingLiturgiesCount,
-          "liturgy.upcomingLiturgiesCount",
-          1,
-          10,
-        ),
-      },
-    };
-  }
+  const common = parseObject(input.common, "common");
+  const expenses = parseObject(input.expenses, "expenses");
+  const news = parseObject(input.news, "news");
+  const liturgy = parseObject(input.liturgy, "liturgy");
 
   return {
     common: {
-      churchName: parseRequiredString(input.churchName, "churchName"),
-      showClock: parseBoolean(input.showClock, "showClock"),
-      showDate: parseBoolean(input.showDate, "showDate"),
-      showExpensesPage: parseBoolean(
-        input.showExpensesPage ?? defaultDashboardSettings.common.showExpensesPage,
-        "showExpensesPage",
-      ),
-      showNewsPage: parseBoolean(input.showNewsPage ?? defaultDashboardSettings.common.showNewsPage, "showNewsPage"),
-      refreshIntervalSeconds: parsePositiveNumber(input.refreshIntervalSeconds, "refreshIntervalSeconds", 15),
+      churchName: parseRequiredString(common.churchName, "common.churchName"),
+      showClock: parseBoolean(common.showClock, "common.showClock"),
+      showDate: parseBoolean(common.showDate, "common.showDate"),
+      showExpensesPage: parseBoolean(common.showExpensesPage, "common.showExpensesPage"),
+      showNewsPage: parseBoolean(common.showNewsPage, "common.showNewsPage"),
+      refreshIntervalSeconds: parsePositiveNumber(common.refreshIntervalSeconds, "common.refreshIntervalSeconds", 15),
       mainViewRotationIntervalSeconds: parsePositiveNumber(
-        input.mainViewRotationIntervalSeconds ?? input.rotationIntervalSeconds,
-        "mainViewRotationIntervalSeconds",
+        common.mainViewRotationIntervalSeconds,
+        "common.mainViewRotationIntervalSeconds",
         5,
       ),
-      mainVerseText: parseOptionalString(input.mainVerseText),
-      mainVerseReference: parseOptionalString(input.mainVerseReference),
+      mainVerseText: parseOptionalString(common.mainVerseText),
+      mainVerseReference: parseOptionalString(common.mainVerseReference),
     },
     expenses: {
-      dashboardTitle: parseRequiredString(input.dashboardTitle, "dashboardTitle"),
-      churchWebsiteUrl: parseOptionalString(input.churchWebsiteUrl),
-      donationUrl: parseOptionalString(input.donationUrl),
-      eTransferText: parseOptionalString(input.eTransferText),
-      itemsPerPage: parsePositiveNumber(input.itemsPerPage, "itemsPerPage", 1),
+      dashboardTitle: parseRequiredString(expenses.dashboardTitle, "expenses.dashboardTitle"),
+      churchWebsiteUrl: parseOptionalString(expenses.churchWebsiteUrl),
+      donationUrl: parseOptionalString(expenses.donationUrl),
+      eTransferText: parseOptionalString(expenses.eTransferText),
+      itemsPerPage: parsePositiveNumber(expenses.itemsPerPage, "expenses.itemsPerPage", 1),
     },
     news: {
-      dashboardTitle: parseRequiredString(
-        input.newsDashboardTitle ?? defaultDashboardSettings.news.dashboardTitle,
-        "newsDashboardTitle",
-      ),
-      itemsPerPage: parsePositiveNumber(
-        input.newsItemsPerPage ?? input.itemsPerPage ?? defaultDashboardSettings.news.itemsPerPage,
-        "newsItemsPerPage",
-        1,
-      ),
+      dashboardTitle: parseRequiredString(news.dashboardTitle, "news.dashboardTitle"),
+      itemsPerPage: parsePositiveNumber(news.itemsPerPage, "news.itemsPerPage", 1),
     },
     liturgy: {
-      googleCalendarId: parseOptionalString(input.liturgyGoogleCalendarId),
-      googleCalendarApiKey: parseOptionalString(input.liturgyGoogleCalendarApiKey),
+      googleCalendarId: parseOptionalString(liturgy.googleCalendarId),
+      googleCalendarApiKey: parseOptionalString(liturgy.googleCalendarApiKey),
       lookAheadWeeks: parseIntegerInRange(
-        input.liturgyLookAheadWeeks ?? defaultDashboardSettings.liturgy.lookAheadWeeks,
-        "liturgyLookAheadWeeks",
+        liturgy.lookAheadWeeks,
+        "liturgy.lookAheadWeeks",
         1,
         8,
       ),
       upcomingLiturgiesCount: parseIntegerInRange(
-        input.upcomingLiturgiesCount ?? defaultDashboardSettings.liturgy.upcomingLiturgiesCount,
-        "upcomingLiturgiesCount",
+        liturgy.upcomingLiturgiesCount,
+        "liturgy.upcomingLiturgiesCount",
         1,
         10,
       ),
@@ -482,112 +395,8 @@ const validateSettingsInput = (input: Record<string, unknown>): DashboardSetting
   };
 };
 
-const sanitizeDashboardSettings = (settings?: Partial<DashboardSettings> | LegacyDashboardSettings): DashboardSettings => {
-  const legacy = (settings ?? {}) as LegacyDashboardSettings;
-  const common = isRecord(legacy.common) ? legacy.common : {};
-  const expenses = isRecord(legacy.expenses) ? legacy.expenses : {};
-  const news = isRecord(legacy.news) ? legacy.news : {};
-  const liturgy = isRecord(legacy.liturgy) ? legacy.liturgy : {};
-  const legacyExpenseSettings = expenses as Record<string, unknown>;
-  const legacyNewsSettings = news as Record<string, unknown>;
-  const legacyNewsUpcomingLiturgiesCount = legacyNewsSettings.upcomingLiturgiesCount;
-  const newsUpcomingLiturgiesCount =
-    typeof legacyNewsUpcomingLiturgiesCount === "number"
-      ? Math.max(1, Math.min(10, Math.floor(legacyNewsUpcomingLiturgiesCount)))
-      : undefined;
-
-  return {
-    common: {
-      churchName: typeof common.churchName === "string" ? common.churchName : legacy.churchName ?? defaultDashboardSettings.common.churchName,
-      showClock: typeof common.showClock === "boolean" ? common.showClock : legacy.showClock ?? defaultDashboardSettings.common.showClock,
-      showDate: typeof common.showDate === "boolean" ? common.showDate : legacy.showDate ?? defaultDashboardSettings.common.showDate,
-      showExpensesPage:
-        typeof common.showExpensesPage === "boolean"
-          ? common.showExpensesPage
-          : legacy.showExpensesPage ?? defaultDashboardSettings.common.showExpensesPage,
-      showNewsPage:
-        typeof common.showNewsPage === "boolean"
-          ? common.showNewsPage
-          : legacy.showNewsPage ?? defaultDashboardSettings.common.showNewsPage,
-      refreshIntervalSeconds:
-        typeof common.refreshIntervalSeconds === "number"
-          ? common.refreshIntervalSeconds
-          : legacy.refreshIntervalSeconds ?? defaultDashboardSettings.common.refreshIntervalSeconds,
-      mainViewRotationIntervalSeconds:
-        typeof common.mainViewRotationIntervalSeconds === "number"
-          ? common.mainViewRotationIntervalSeconds
-          : legacy.mainViewRotationIntervalSeconds ?? legacy.rotationIntervalSeconds ?? defaultDashboardSettings.common.mainViewRotationIntervalSeconds,
-      mainVerseText:
-        typeof common.mainVerseText === "string"
-          ? common.mainVerseText
-          : typeof legacyExpenseSettings.mainVerseText === "string"
-            ? legacyExpenseSettings.mainVerseText
-            : legacy.mainVerseText ?? defaultDashboardSettings.common.mainVerseText,
-      mainVerseReference:
-        typeof common.mainVerseReference === "string"
-          ? common.mainVerseReference
-          : typeof legacyExpenseSettings.mainVerseReference === "string"
-            ? legacyExpenseSettings.mainVerseReference
-            : legacy.mainVerseReference ?? defaultDashboardSettings.common.mainVerseReference,
-    },
-    expenses: {
-      dashboardTitle:
-        typeof expenses.dashboardTitle === "string"
-          ? expenses.dashboardTitle
-          : legacy.dashboardTitle ?? defaultDashboardSettings.expenses.dashboardTitle,
-      churchWebsiteUrl:
-        typeof expenses.churchWebsiteUrl === "string"
-          ? expenses.churchWebsiteUrl
-          : legacy.churchWebsiteUrl ?? defaultDashboardSettings.expenses.churchWebsiteUrl,
-      donationUrl:
-        typeof expenses.donationUrl === "string"
-          ? expenses.donationUrl
-          : legacy.donationUrl ?? defaultDashboardSettings.expenses.donationUrl,
-      eTransferText:
-        typeof expenses.eTransferText === "string"
-          ? expenses.eTransferText
-          : legacy.eTransferText ?? defaultDashboardSettings.expenses.eTransferText,
-      itemsPerPage:
-        typeof expenses.itemsPerPage === "number"
-          ? expenses.itemsPerPage
-          : legacy.itemsPerPage ?? defaultDashboardSettings.expenses.itemsPerPage,
-    },
-    news: {
-      dashboardTitle:
-        typeof news.dashboardTitle === "string"
-          ? news.dashboardTitle
-          : legacy.newsDashboardTitle ?? defaultDashboardSettings.news.dashboardTitle,
-      itemsPerPage:
-        typeof news.itemsPerPage === "number"
-          ? news.itemsPerPage
-          : legacy.newsItemsPerPage ?? legacy.itemsPerPage ?? defaultDashboardSettings.news.itemsPerPage,
-    },
-    liturgy: {
-      googleCalendarId:
-        typeof liturgy.googleCalendarId === "string"
-          ? liturgy.googleCalendarId.trim()
-          : legacy.liturgyGoogleCalendarId?.trim() ?? defaultDashboardSettings.liturgy.googleCalendarId,
-      googleCalendarApiKey:
-        typeof liturgy.googleCalendarApiKey === "string"
-          ? liturgy.googleCalendarApiKey.trim()
-          : legacy.liturgyGoogleCalendarApiKey?.trim() ?? defaultDashboardSettings.liturgy.googleCalendarApiKey,
-      lookAheadWeeks:
-        typeof liturgy.lookAheadWeeks === "number"
-          ? Math.max(1, Math.min(8, Math.floor(liturgy.lookAheadWeeks)))
-          : typeof legacy.liturgyLookAheadWeeks === "number"
-            ? Math.max(1, Math.min(8, Math.floor(legacy.liturgyLookAheadWeeks)))
-            : defaultDashboardSettings.liturgy.lookAheadWeeks,
-      upcomingLiturgiesCount:
-        typeof liturgy.upcomingLiturgiesCount === "number"
-          ? Math.max(1, Math.min(10, Math.floor(liturgy.upcomingLiturgiesCount)))
-          : typeof newsUpcomingLiturgiesCount === "number"
-            ? newsUpcomingLiturgiesCount
-            : typeof legacy.upcomingLiturgiesCount === "number"
-              ? Math.max(1, Math.min(10, Math.floor(legacy.upcomingLiturgiesCount)))
-              : defaultDashboardSettings.liturgy.upcomingLiturgiesCount,
-    },
-  };
-};
+const sanitizeDashboardSettings = (settings?: DashboardSettings): DashboardSettings =>
+  settings ?? defaultDashboardSettings;
 
 const sanitizePublicDashboardSettings = (settings: DashboardSettings): DashboardSettings => ({
   ...settings,
@@ -675,20 +484,6 @@ const parseOptionalIsoDate = (value: unknown, fieldName: string) => {
   }
 
   return normalized.toISOString();
-};
-
-const parseDateOnly = (value: unknown, fieldName: string) => {
-  const parsed = parseRequiredString(value, fieldName);
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(parsed)) {
-    throw Object.assign(new Error(`${fieldName} must be a valid date in YYYY-MM-DD format.`), { statusCode: 400 });
-  }
-
-  const normalized = new Date(`${parsed}T00:00:00.000Z`);
-  if (Number.isNaN(normalized.getTime())) {
-    throw Object.assign(new Error(`${fieldName} must be a valid date.`), { statusCode: 400 });
-  }
-
-  return parsed;
 };
 
 const validateNewsInput = (input: Record<string, unknown>): CreateChurchNewsInput => {

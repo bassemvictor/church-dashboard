@@ -19,7 +19,6 @@ import {
   getComputedStatus,
   getFundingPercentage,
   getIconComponent,
-  isExpenseVisible,
   getRemainingAmount,
   iconChoices,
   removeExpenseImage,
@@ -111,12 +110,10 @@ const EXPENSE_EDITOR_FORM_ID = "expense-editor-form";
 
 const ExpenseEditorDialog = ({
   expense,
-  nextDisplayOrder,
   open,
   onClose,
 }: {
   expense: ChurchExpense | null;
-  nextDisplayOrder: number;
   open: boolean;
   onClose: () => void;
 }) => {
@@ -530,7 +527,6 @@ export const AdminExpensesPage = () => {
   const [draggedExpenseId, setDraggedExpenseId] = useState<string | null>(null);
   const [togglingExpenseId, setTogglingExpenseId] = useState<string | null>(null);
   const [toggleErrorMessage, setToggleErrorMessage] = useState("");
-  const now = new Date();
 
   useEffect(() => {
     setOrderedExpenses(expensesQuery.data ?? []);
@@ -945,7 +941,6 @@ export const AdminExpensesPage = () => {
 
       <ExpenseEditorDialog
         expense={editingExpense}
-        nextDisplayOrder={orderedExpenses.length + 1}
         onClose={() => setIsEditorOpen(false)}
         open={isEditorOpen}
       />
