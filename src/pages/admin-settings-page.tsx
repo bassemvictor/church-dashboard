@@ -122,35 +122,34 @@ export const AdminSettingsPage = () => {
     <div className="space-y-6">
       <ToastStack toasts={toasts} />
 
-      <div className="rounded-xl border border-[#dbe4f0] bg-white px-6 py-6 shadow-[0_18px_40px_rgba(16,33,61,0.06)]">
-        <p className="text-xs font-semibold uppercase tracking-[0.28em] text-[#7a8eab]">Settings</p>
-        <h2 className="mt-2 text-3xl font-semibold text-[#112947]">Configure the public display, Projects & Expenses, Church News, and the liturgy calendar feed.</h2>
-      </div>
+      <div
+        aria-label="Settings sections"
+        className="grid grid-cols-2 gap-2 rounded-xl border border-[#dbe4f0] bg-white p-2 shadow-[0_10px_24px_rgba(16,33,61,0.04)] sm:grid-cols-4"
+        role="tablist"
+      >
+        {sectionOptions.map((section) => {
+          const isActive = activeSection === section.id;
+          const isDirty = hasUnsavedChanges(section.id);
 
-      <div className="-mx-1 overflow-x-auto px-1">
-        <div className="inline-flex min-w-full gap-2 rounded-xl border border-[#dbe4f0] bg-white p-2 shadow-[0_10px_24px_rgba(16,33,61,0.04)] sm:min-w-0">
-          {sectionOptions.map((section) => {
-            const isActive = activeSection === section.id;
-            const isDirty = hasUnsavedChanges(section.id);
-
-            return (
-              <button
-                className={cn(
-                  "inline-flex min-w-fit items-center justify-center rounded-lg px-4 py-2 text-sm font-medium transition",
-                  isActive
-                    ? "bg-[#112947] text-white shadow-[0_10px_20px_rgba(17,41,71,0.18)]"
-                    : "text-[#556b86] hover:bg-[#f4f7fc] hover:text-[#112947]",
-                )}
-                key={section.id}
-                onClick={() => setActiveSection(section.id)}
-                type="button"
-              >
-                {section.label}
-                {isDirty ? <span className="ml-2 rounded-full bg-white/18 px-1.5 py-0.5 text-[10px] uppercase tracking-[0.16em]">{isActive ? "Edited" : "New"}</span> : null}
-              </button>
-            );
-          })}
-        </div>
+          return (
+            <button
+              aria-selected={isActive}
+              className={cn(
+                "inline-flex min-h-12 min-w-0 items-center justify-center rounded-lg px-2 py-2 text-center text-sm font-medium leading-tight transition sm:px-3",
+                isActive
+                  ? "bg-[#112947] text-white shadow-[0_10px_20px_rgba(17,41,71,0.18)]"
+                  : "text-[#556b86] hover:bg-[#f4f7fc] hover:text-[#112947]",
+              )}
+              key={section.id}
+              onClick={() => setActiveSection(section.id)}
+              role="tab"
+              type="button"
+            >
+              {section.label}
+              {isDirty ? <span className="ml-2 rounded-full bg-white/18 px-1.5 py-0.5 text-[10px] uppercase tracking-[0.16em]">{isActive ? "Edited" : "New"}</span> : null}
+            </button>
+          );
+        })}
       </div>
 
       <div className="space-y-4">
