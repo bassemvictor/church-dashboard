@@ -475,13 +475,12 @@ const DidYouKnowView = ({ items }: { items: ChurchDidYouKnow[] }) => (
             <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-[1.25rem] bg-[#112947] text-white shadow-[0_10px_20px_rgba(17,41,71,0.16)] lg:h-20 lg:w-20">
               <Icon className="h-8 w-8 lg:h-10 lg:w-10" />
             </div>
-            <p className="max-h-[8.2rem] flex-1 overflow-hidden pt-1 text-[clamp(1.3rem,1.8vw,2.1rem)] font-medium leading-[1.27] text-[#183654]">
-              {item.factText}
-            </p>
-          </div>
-          <div className="relative mt-4">
+            <div className="min-w-0 flex-1 pt-1">
+              <p className="max-h-[8.2rem] overflow-hidden text-[clamp(1.3rem,1.8vw,2.1rem)] font-medium leading-[1.27] text-[#183654]">
+                {item.factText}
+              </p>
             {item.highlightText ? (
-              <p className="mt-3 text-[clamp(2rem,3.3vw,3.8rem)] font-semibold leading-none tracking-[-0.035em] text-[#a4772d]">
+              <p className="mt-2 text-[clamp(2rem,3.3vw,3.8rem)] font-semibold leading-none tracking-[-0.035em] text-[#a4772d]">
                 {item.highlightText}
               </p>
             ) : null}
@@ -490,6 +489,7 @@ const DidYouKnowView = ({ items }: { items: ChurchDidYouKnow[] }) => (
                 {item.supportingText}
               </p>
             ) : null}
+            </div>
           </div>
         </article>
       );
@@ -563,6 +563,7 @@ export const PublicDashboardPage = () => {
   const [newsPageIndex, setNewsPageIndex] = useState(0);
   const [didYouKnowPageIndex, setDidYouKnowPageIndex] = useState(0);
   const [rotationProgress, setRotationProgress] = useState(0);
+  const [rotationCycleSeed, setRotationCycleSeed] = useState(0);
   const payload = dashboardQuery.data ?? buildEmptyPayload();
   const settings = payload.settings ?? defaultDashboardSettings;
   const enabledViews = useMemo(() => getEnabledDashboardViews(settings), [settings]);
@@ -679,8 +680,40 @@ export const PublicDashboardPage = () => {
     projectPageCount,
     enabledViews,
     currentView,
+    rotationCycleSeed,
     rotationIntervalSeconds,
   ]);
+
+  const advanceDashboardView = () => {
+    if (!currentView) {
+      return;
+    }
+
+    const nextState = getNextDashboardViewState({
+      activeView: currentView,
+      expensePageIndex,
+      newsPageIndex,
+      didYouKnowPageIndex,
+      projectPageCount,
+      newsPageCount,
+      didYouKnowPageCount,
+      enabledViews,
+    });
+    if (!nextState) {
+      return;
+    }
+
+    setIsVisible(false);
+    window.setTimeout(() => {
+      setActiveView(nextState.activeView);
+      setExpensePageIndex(nextState.expensePageIndex);
+      setNewsPageIndex(nextState.newsPageIndex);
+      setDidYouKnowPageIndex(nextState.didYouKnowPageIndex);
+      setIsVisible(true);
+      setRotationProgress(0);
+      setRotationCycleSeed((current) => current + 1);
+    }, 120);
+  };
 
   const pagedProjects = useMemo(
     () =>
@@ -736,6 +769,7 @@ export const PublicDashboardPage = () => {
     : currentView === "news"
       ? newsPageLabel
       : didYouKnowPageLabel;
+  const rotationProgressPercent = `${Math.round(rotationProgress * 100)}%`;
 
   if (dashboardQuery.isLoading && !dashboardQuery.data) {
     return (
@@ -784,15 +818,33 @@ export const PublicDashboardPage = () => {
 
             <div className="flex min-w-[260px] items-center justify-center gap-3 md:absolute md:right-0 md:top-1/2 md:-translate-y-1/2 md:justify-end">
               {enabledViews.length ? (
-                <>
-                  <div className="inline-flex items-center gap-1.5 rounded-full bg-[#112947] px-3 py-1.5 text-[0.64rem] font-semibold uppercase tracking-[0.14em] text-white">
+                <div
+                  aria-label="Show next dashboard page"
+                  className="relative inline-flex overflow-hidden rounded-full bg-[#f3ead8] px-3 py-1.5 text-[0.64rem] font-semibold uppercase tracking-[0.14em] shadow-[inset_0_0_0_1px_rgba(141,106,47,0.12)]"
+                  onClick={advanceDashboardView}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      advanceDashboardView();
+                    }
+                  }}
+                  role="button"
+                  tabIndex={0}
+                >
+                  <div
+                    aria-hidden="true"
+                    className="absolute inset-y-0 left-0 bg-[#112947] transition-[width] duration-150 ease-linear"
+                    style={{ width: rotationProgressPercent }}
+                  />
+                  <div
+                    className="relative inline-flex items-center gap-1.5 text-white mix-blend-difference"
+                  >
                     <span>{currentViewLabel}</span>
-                    <span className="rounded-full bg-white/14 px-1.5 py-0.5 text-[0.56rem] tracking-[0.1em] text-white">
+                    <span className="rounded-full bg-white/18 px-1.5 py-0.5 text-[0.56rem] tracking-[0.1em]">
                       {currentPageLabel}
                     </span>
                   </div>
-                  <RotationClock progress={rotationProgress} />
-                </>
+                </div>
               ) : null}
             </div>
           </div>
