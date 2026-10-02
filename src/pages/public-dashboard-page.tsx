@@ -358,24 +358,24 @@ const ProjectsView = ({ items, todayDateKey }: { items: ChurchExpense[]; todayDa
             )}
             <div className="min-w-0">
               <div className="flex items-center gap-2.5">
-                <div className="min-w-0"><h2 className="text-xl font-semibold uppercase leading-tight tracking-[0.03em] text-[#132946]">{expense.title}</h2><p className="mt-1 text-xs font-semibold uppercase tracking-[0.24em] text-[#8d6a2f]">Project</p></div>
+              <div className="min-w-0"><h2 className="text-[1.65rem] font-semibold leading-tight tracking-[0.03em] text-[#132946]">{expense.title}</h2><p className="mt-1 text-[0.85rem] font-semibold uppercase tracking-[0.24em] text-[#8d6a2f]">Project</p></div>
               </div>
             </div>
           </div>
 
           <div>
-            <p className="text-sm leading-relaxed text-[#415a78] lg:text-base">{expense.description}</p>
-            {dueMeta ? <div className={`mt-3 inline-flex items-center gap-2.5 rounded-full border px-3 py-1.5 ${dueMeta.accentClassName}`}><span className="text-[0.58rem] font-bold uppercase tracking-[0.22em]">{dueMeta.label}</span><span className="text-[0.82rem] font-semibold tracking-[0.03em]">{dueMeta.value}</span></div> : null}
+            <p className="text-[1.1rem] leading-relaxed text-[#415a78] lg:text-[1.25rem]">{expense.description}</p>
+            {dueMeta ? <div className={`mt-3 inline-flex items-center gap-2.5 rounded-full border px-3 py-1.5 ${dueMeta.accentClassName}`}><span className="text-[0.68rem] font-bold uppercase tracking-[0.22em]">{dueMeta.label}</span><span className="text-[0.94rem] font-semibold tracking-[0.03em]">{dueMeta.value}</span></div> : null}
           </div>
 
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#8d6a2f]">Cost</p>
-            <p className="mt-1 text-2xl font-semibold text-[#132946]">{formatCurrency(expense.totalBudget)}</p>
+            <p className="text-[0.85rem] font-semibold uppercase tracking-[0.2em] text-[#8d6a2f]">Cost</p>
+            <p className="mt-1 text-[1.75rem] font-semibold text-[#132946]">{formatCurrency(expense.totalBudget)}</p>
           </div>
 
-          {showFunded ? <div><p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#8d6a2f]">Funded</p><p className={`mt-1 text-2xl font-semibold ${statusMeta.tone}`}>{formatCurrency(expense.fundedAmount)}</p></div> : null}
-          {showProgress ? <div><p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#8d6a2f]">Progress</p><div className="mt-2 h-4 rounded-full bg-[#ece8e1]"><div className={`h-4 rounded-full bg-gradient-to-r ${statusMeta.trackTone}`} style={{ width: `${progress}%` }} /></div><p className={`mt-1 text-lg font-semibold ${statusMeta.tone}`}>{Math.round(percentage)}%</p></div> : null}
-          {showStatus ? <div className="flex items-center gap-2.5"><>{status === "FUNDED" || status === "ON_TRACK" ? <CheckCircle2 className={`h-10 w-10 shrink-0 ${statusMeta.tone}`} /> : <CircleAlert className={`h-10 w-10 shrink-0 ${statusMeta.tone}`} />}</><div><p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#8d6a2f]">Status</p><p className={`mt-1 text-lg font-semibold uppercase ${statusMeta.tone}`}>{expense.customStatusText || statusMeta.label}</p><p className="text-sm text-[#556b86]">{expense.customSubText || statusMeta.subtext}</p></div></div> : null}
+          {showFunded ? <div><p className="text-[0.85rem] font-semibold uppercase tracking-[0.2em] text-[#8d6a2f]">Funded</p><p className={`mt-1 text-[1.75rem] font-semibold ${statusMeta.tone}`}>{formatCurrency(expense.fundedAmount)}</p></div> : null}
+          {showProgress ? <div><p className="text-[0.85rem] font-semibold uppercase tracking-[0.2em] text-[#8d6a2f]">Progress</p><div className="mt-2 h-4 rounded-full bg-[#ece8e1]"><div className={`h-4 rounded-full bg-gradient-to-r ${statusMeta.trackTone}`} style={{ width: `${progress}%` }} /></div><p className={`mt-1 text-[1.3rem] font-semibold ${statusMeta.tone}`}>{Math.round(percentage)}%</p></div> : null}
+          {showStatus ? <div className="flex items-center gap-2.5"><>{status === "FUNDED" || status === "ON_TRACK" ? <CheckCircle2 className={`h-10 w-10 shrink-0 ${statusMeta.tone}`} /> : <CircleAlert className={`h-10 w-10 shrink-0 ${statusMeta.tone}`} />}</><div><p className="text-[0.85rem] font-semibold uppercase tracking-[0.2em] text-[#8d6a2f]">Status</p><p className={`mt-1 text-[1.3rem] font-semibold uppercase ${statusMeta.tone}`}>{expense.customStatusText || statusMeta.label}</p><p className="text-base text-[#556b86]">{expense.customSubText || statusMeta.subtext}</p></div></div> : null}
         </article>
       );
     })}
@@ -398,26 +398,26 @@ const NewsView = ({
 
         return (
           <article
-            className="flex gap-4 rounded-[1.4rem] border border-[#ede3d2] bg-[#fffdfa]/96 p-4 shadow-[0_14px_36px_rgba(31,42,68,0.05)]"
+            className="flex gap-5 rounded-[1.4rem] border border-[#ede3d2] bg-[#fffdfa]/96 p-5 shadow-[0_14px_36px_rgba(31,42,68,0.05)]"
             key={item.id}
           >
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#112947] text-white">
-              <Icon className="h-6 w-6" />
+            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-[#112947] text-white">
+              <Icon className="h-7 w-7" />
             </div>
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center justify-between gap-3">
-                <h2 className="text-xl font-semibold uppercase leading-tight tracking-[0.03em] text-[#132946]">
+                <h2 className="text-[1.85rem] font-semibold leading-tight tracking-[0.03em] text-[#132946]">
                   {item.title}
                 </h2>
-                <span className="rounded-full bg-[#f8f2e7] px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-[#8d6a2f]">
+                <span className="rounded-full bg-[#f8f2e7] px-3.5 py-1.5 text-[0.88rem] font-semibold uppercase tracking-[0.2em] text-[#8d6a2f]">
                   {newsCategoryLabels[item.category ?? "GENERAL"]}
                 </span>
               </div>
               {item.description ? (
-                <p className="mt-2 text-sm leading-relaxed text-[#415a78] lg:text-base">{item.description}</p>
+                <p className="mt-2.5 text-[1.1rem] leading-relaxed text-[#415a78] lg:text-[1.25rem]">{item.description}</p>
               ) : null}
               {(item.eventDate || item.location) ? (
-                <div className="mt-3 flex flex-wrap gap-3 text-xs font-semibold uppercase tracking-[0.18em] text-[#8d6a2f]">
+                <div className="mt-3.5 flex flex-wrap gap-3 text-[0.95rem] font-semibold uppercase tracking-[0.18em] text-[#8d6a2f]">
                   {formatAnnouncementDate(item.eventDate) ? <span>{formatAnnouncementDate(item.eventDate)}</span> : null}
                   {item.location ? <span>{item.location}</span> : null}
                 </div>
@@ -437,19 +437,19 @@ const NewsView = ({
       ) : null}
     </div>
 
-    <aside className="rounded-[1.6rem] border border-[#eadfcf] bg-[#fff9ef] p-3.5 shadow-[0_14px_36px_rgba(31,42,68,0.04)]">
-      <p className="text-sm font-semibold uppercase tracking-[0.24em] text-[#8d6a2f]">Upcoming Divine Liturgies</p>
+    <aside className="rounded-[1.6rem] border border-[#eadfcf] bg-[#fff9ef] p-4.5 shadow-[0_14px_36px_rgba(31,42,68,0.04)]">
+      <p className="text-[1.02rem] font-semibold uppercase tracking-[0.24em] text-[#8d6a2f]">Upcoming Divine Liturgies</p>
       {liturgies.length ? (
-        <div className="mt-3 space-y-3">
+        <div className="mt-3.5 space-y-3.5">
           {liturgies.map((item) => (
-            <div className="border-b border-[#eadfcf] pb-3 last:border-b-0 last:pb-0" key={item.id}>
-              <p className="text-[1.35rem] font-semibold leading-tight text-[#112947]">{formatLiturgyDate(item.date)}</p>
+            <div className="border-b border-[#eadfcf] pb-3.5 last:border-b-0 last:pb-0" key={item.id}>
+              <p className="text-[1.65rem] font-semibold leading-tight text-[#112947]">{formatLiturgyDate(item.date)}</p>
               {formatLiturgyTime(item.startDateTime) && formatLiturgyTime(item.endDateTime) ? (
-                <p className="mt-0.5 text-sm font-medium leading-snug text-[#8d6a2f]">
+                <p className="mt-1 text-[1.08rem] font-medium leading-snug text-[#8d6a2f]">
                   From {formatLiturgyTime(item.startDateTime)} to {formatLiturgyTime(item.endDateTime)}
                 </p>
               ) : null}
-              {item.description ? <p className="mt-0.5 text-sm leading-snug text-[#556b86]">{item.description}</p> : null}
+              {item.description ? <p className="mt-1 text-[1.08rem] leading-snug text-[#556b86]">{item.description}</p> : null}
             </div>
           ))}
         </div>
