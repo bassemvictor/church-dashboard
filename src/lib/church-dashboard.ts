@@ -167,17 +167,99 @@ export const newsCategoryLabels: Record<ChurchNewsCategory, string> = {
 };
 
 export const storagePathPrefix = "public/expenses";
+const minimumExpenseImageWidth = 600;
+const minimumExpenseImageHeight = 400;
+const maximumExpenseImageDimension = 1920;
+
+const getImageDimensions = (file: File) =>
+  new Promise<{ width: number; height: number }>((resolve, reject) => {
+    const objectUrl = URL.createObjectURL(file);
+    const image = new Image();
+
+    image.onload = () => {
+      URL.revokeObjectURL(objectUrl);
+      resolve({ width: image.naturalWidth, height: image.naturalHeight });
+    };
+    image.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      reject(new Error("The selected file could not be read as an image."));
+    };
+    image.src = objectUrl;
+  });
+
+const validateExpenseImage = async (file: File) => {
+  if (!file.type.startsWith("image/")) {
+    throw new Error("Please select an image file.");
+  }
+
+  const { width, height } = await getImageDimensions(file);
+  if (width < minimumExpenseImageWidth || height < minimumExpenseImageHeight) {
+    throw new Error(
+      `Please use an image at least ${minimumExpenseImageWidth} × ${minimumExpenseImageHeight} pixels so it stays sharp on TV displays.`,
+    );
+  }
+};
+
+const downscaleExpenseImage = async (file: File) => {
+  const { width, height } = await getImageDimensions(file);
+  const largestDimension = Math.max(width, height);
+  if (largestDimension <= maximumExpenseImageDimension) {
+    return file;
+  }
+
+  const scale = maximumExpenseImageDimension / largestDimension;
+  const targetWidth = Math.round(width * scale);
+  const targetHeight = Math.round(height * scale);
+  const objectUrl = URL.createObjectURL(file);
+  const image = new Image();
+
+  try {
+    await new Promise<void>((resolve, reject) => {
+      image.onload = () => resolve();
+      image.onerror = () => reject(new Error("The selected file could not be prepared for upload."));
+      image.src = objectUrl;
+    });
+
+    const canvas = document.createElement("canvas");
+    canvas.width = targetWidth;
+    canvas.height = targetHeight;
+    const context = canvas.getContext("2d");
+    if (!context) {
+      throw new Error("Your browser could not prepare this image for upload.");
+    }
+
+    context.imageSmoothingEnabled = true;
+    context.imageSmoothingQuality = "high";
+    context.drawImage(image, 0, 0, targetWidth, targetHeight);
+
+    const outputType = file.type === "image/png" ? "image/png" : "image/jpeg";
+    const extension = outputType === "image/png" ? ".png" : ".jpg";
+    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, outputType, 0.92));
+    if (!blob) {
+      throw new Error("The selected file could not be prepared for upload.");
+    }
+
+    return new File([blob], `${file.name.replace(/\.[^.]+$/, "") || "project-image"}${extension}`, {
+      type: outputType,
+      lastModified: file.lastModified,
+    });
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
+};
 
 export const uploadExpenseImage = async (file: File) => {
-  const extension = file.name.includes(".") ? file.name.slice(file.name.lastIndexOf(".")) : "";
+  await validateExpenseImage(file);
+  const preparedFile = await downscaleExpenseImage(file);
+  const extension = preparedFile.name.includes(".") ? preparedFile.name.slice(preparedFile.name.lastIndexOf(".")) : "";
   const safeExtension = extension.toLowerCase().replace(/[^a-z0-9.]/g, "");
   const key = `${storagePathPrefix}/${crypto.randomUUID()}${safeExtension}`;
 
   await uploadData({
     path: key,
-    data: file,
+    data: preparedFile,
     options: {
-      contentType: file.type || "image/png",
+      contentType: preparedFile.type || "image/png",
     },
   }).result;
 

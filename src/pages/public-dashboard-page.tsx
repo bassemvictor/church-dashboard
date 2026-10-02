@@ -563,7 +563,6 @@ export const PublicDashboardPage = () => {
   const [newsPageIndex, setNewsPageIndex] = useState(0);
   const [didYouKnowPageIndex, setDidYouKnowPageIndex] = useState(0);
   const [rotationProgress, setRotationProgress] = useState(0);
-  const [rotationCycleSeed, setRotationCycleSeed] = useState(0);
   const payload = dashboardQuery.data ?? buildEmptyPayload();
   const settings = payload.settings ?? defaultDashboardSettings;
   const enabledViews = useMemo(() => getEnabledDashboardViews(settings), [settings]);
@@ -680,31 +679,8 @@ export const PublicDashboardPage = () => {
     projectPageCount,
     enabledViews,
     currentView,
-    rotationCycleSeed,
     rotationIntervalSeconds,
   ]);
-
-  const handleViewSelect = (view: DashboardView) => {
-    if (!enabledViews.includes(view)) {
-      return;
-    }
-
-    setIsVisible(false);
-
-    window.setTimeout(() => {
-      setActiveView(view);
-      if (view === "projects") {
-        setExpensePageIndex(0);
-      } else if (view === "news") {
-        setNewsPageIndex(0);
-      } else {
-        setDidYouKnowPageIndex(0);
-      }
-      setIsVisible(true);
-      setRotationProgress(0);
-      setRotationCycleSeed((current) => current + 1);
-    }, 120);
-  };
 
   const pagedProjects = useMemo(
     () =>
@@ -750,6 +726,16 @@ export const PublicDashboardPage = () => {
   const projectsPageLabel = `${expensePageIndex + 1} / ${projectPageCount}`;
   const newsPageLabel = `${newsPageIndex + 1} / ${newsPageCount}`;
   const didYouKnowPageLabel = `${didYouKnowPageIndex + 1} / ${didYouKnowPageCount}`;
+  const currentViewLabel = currentView === "projects"
+    ? "Projects"
+    : currentView === "news"
+      ? "News"
+      : "Did You Know";
+  const currentPageLabel = currentView === "projects"
+    ? projectsPageLabel
+    : currentView === "news"
+      ? newsPageLabel
+      : didYouKnowPageLabel;
 
   if (dashboardQuery.isLoading && !dashboardQuery.data) {
     return (
@@ -799,55 +785,11 @@ export const PublicDashboardPage = () => {
             <div className="flex min-w-[260px] items-center justify-center gap-3 md:absolute md:right-0 md:top-1/2 md:-translate-y-1/2 md:justify-end">
               {enabledViews.length ? (
                 <>
-                  <div className="flex items-center justify-center gap-2 md:justify-end">
-                    {enabledViews.includes("projects") ? (
-                      <button
-                        className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[0.64rem] font-semibold uppercase tracking-[0.14em] transition-colors ${
-                          currentView === "projects" ? "bg-[#112947] text-white" : "bg-[#f3ead8] text-[#8d6a2f] hover:bg-[#eadcc3]"
-                        }`}
-                        onClick={() => handleViewSelect("projects")}
-                        type="button"
-                      >
-                        Projects
-                        {currentView === "projects" ? (
-                          <span className="rounded-full bg-white/14 px-1.5 py-0.5 text-[0.56rem] tracking-[0.1em] text-white">
-                            {projectsPageLabel}
-                          </span>
-                        ) : null}
-                      </button>
-                    ) : null}
-                    {enabledViews.includes("news") ? (
-                      <button
-                        className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[0.64rem] font-semibold uppercase tracking-[0.14em] transition-colors ${
-                          currentView === "news" ? "bg-[#112947] text-white" : "bg-[#f3ead8] text-[#8d6a2f] hover:bg-[#eadcc3]"
-                        }`}
-                        onClick={() => handleViewSelect("news")}
-                        type="button"
-                      >
-                        News
-                        {currentView === "news" ? (
-                          <span className="rounded-full bg-white/14 px-1.5 py-0.5 text-[0.56rem] tracking-[0.1em] text-white">
-                            {newsPageLabel}
-                          </span>
-                        ) : null}
-                      </button>
-                    ) : null}
-                    {enabledViews.includes("didYouKnow") ? (
-                      <button
-                        className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[0.64rem] font-semibold uppercase tracking-[0.14em] transition-colors ${
-                          currentView === "didYouKnow" ? "bg-[#112947] text-white" : "bg-[#f3ead8] text-[#8d6a2f] hover:bg-[#eadcc3]"
-                        }`}
-                        onClick={() => handleViewSelect("didYouKnow")}
-                        type="button"
-                      >
-                        Did You Know
-                        {currentView === "didYouKnow" ? (
-                          <span className="rounded-full bg-white/14 px-1.5 py-0.5 text-[0.56rem] tracking-[0.1em] text-white">
-                            {didYouKnowPageLabel}
-                          </span>
-                        ) : null}
-                      </button>
-                    ) : null}
+                  <div className="inline-flex items-center gap-1.5 rounded-full bg-[#112947] px-3 py-1.5 text-[0.64rem] font-semibold uppercase tracking-[0.14em] text-white">
+                    <span>{currentViewLabel}</span>
+                    <span className="rounded-full bg-white/14 px-1.5 py-0.5 text-[0.56rem] tracking-[0.1em] text-white">
+                      {currentPageLabel}
+                    </span>
                   </div>
                   <RotationClock progress={rotationProgress} />
                 </>
