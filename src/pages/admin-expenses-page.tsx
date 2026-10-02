@@ -401,6 +401,15 @@ const ExpenseEditorDialog = ({
               );
             })}
           </div>
+          <label className="block space-y-2 rounded-xl border border-[#dbe4f0] bg-[#f8fbff] p-3">
+            <span className="text-sm font-medium text-[#112947]">Additional Lucide icon name</span>
+            <Input
+              onChange={(event) => setDraft((current) => ({ ...current, icon: event.target.value }))}
+              placeholder="For example: CalendarHeart or calendar-heart"
+              value={iconChoices.some((choice) => choice.id === draft.icon) ? "" : (draft.icon ?? "")}
+            />
+            <span className="block text-xs text-[#556b86]">Enter any icon name from Lucide. An unavailable name will use the church icon.</span>
+          </label>
         </section>
 
         <section className="grid gap-4 lg:grid-cols-[1fr_1.2fr]">

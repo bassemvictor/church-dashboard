@@ -467,7 +467,7 @@ const DidYouKnowView = ({ items }: { items: ChurchDidYouKnow[] }) => (
 
       return (
         <article
-          className="relative self-start overflow-hidden rounded-[1.7rem] border border-[#eadfcf] bg-[#fffdfa]/96 p-5 shadow-[0_14px_36px_rgba(31,42,68,0.05)] lg:p-7"
+          className="relative overflow-hidden rounded-[1.7rem] border border-[#eadfcf] bg-[#fffdfa]/96 p-5 shadow-[0_14px_36px_rgba(31,42,68,0.05)] lg:p-7"
           key={item.id}
         >
           <div className="absolute right-0 top-0 h-24 w-24 rounded-bl-[5rem] bg-[#f8f0df]" />

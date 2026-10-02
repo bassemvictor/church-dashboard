@@ -145,6 +145,15 @@ const DidYouKnowEditor = ({ item, open, onClose }: { item: ChurchDidYouKnow | nu
               return <button className={["flex flex-col items-center gap-2 rounded-2xl border px-2 py-3 text-xs transition", selected ? "border-[#112947] bg-[#112947] text-white" : "border-[#dcc9a4] bg-[#fffaf2] text-[#314862]"].join(" ")} key={choice.id} onClick={() => setDraft((current) => ({ ...current, icon: choice.id }))} type="button"><Icon className="h-5 w-5" /><span>{choice.label}</span></button>;
             })}
           </div>
+          <label className="block space-y-2 rounded-xl border border-[#dbe4f0] bg-[#f8fbff] p-3">
+            <span className="text-sm font-medium text-[#112947]">Additional Lucide icon name</span>
+            <Input
+              onChange={(event) => setDraft((current) => ({ ...current, icon: event.target.value }))}
+              placeholder="For example: CalendarHeart or calendar-heart"
+              value={iconChoices.some((choice) => choice.id === draft.icon) ? "" : (draft.icon ?? "")}
+            />
+            <span className="block text-xs text-[#556b86]">Enter any icon name from Lucide. An unavailable name will use the church icon.</span>
+          </label>
         </section>
 
         <section className="rounded-3xl border border-[#dbe4f0] bg-[#f8fbff] p-4">

@@ -1,24 +1,38 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { getUrl, remove, uploadData } from "aws-amplify/storage";
+import { createElement } from "react";
 import {
   BookOpen,
+  Baby,
   Building2,
+  BrushCleaning,
+  CalendarDays,
   Church,
   Coins,
   Droplets,
   HandCoins,
+  HandHeart,
+  Handshake,
+  Hammer,
   Heart,
+  HeartHandshake,
   House,
   Music4,
   Settings,
+  ShoppingCart,
+  Snowflake,
   Sparkles,
+  Sprout,
+  TentTree,
   Users,
+  UsersRound,
   Utensils,
   Wrench,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 import { api } from "./api";
+import { DynamicLucideIcon } from "../components/common/dynamic-lucide-icon";
 import {
   dashboardStatusThresholds,
   defaultDashboardSettings,
@@ -129,25 +143,48 @@ export const iconChoices: Array<{
   { id: "book-open", label: "Bible", icon: BookOpen },
   { id: "users", label: "Community", icon: Users },
   { id: "children", label: "Children", icon: Heart },
+  { id: "kids", label: "Kids", icon: Baby },
+  { id: "meeting", label: "Meeting", icon: CalendarDays },
+  { id: "prayer", label: "Prayer", icon: HandHeart },
+  { id: "gathering", label: "Gathering", icon: UsersRound },
+  { id: "scouts", label: "Scouts", icon: TentTree },
+  { id: "care-support", label: "Care", icon: HeartHandshake },
+  { id: "fellowship", label: "Fellowship", icon: Handshake },
   { id: "school", label: "School", icon: BookOpen },
   { id: "building", label: "Building", icon: Building2 },
   { id: "maintenance", label: "Maintenance", icon: Settings },
   { id: "wrench", label: "Wrench", icon: Wrench },
+  { id: "fixing", label: "Repairs", icon: Hammer },
   { id: "hvac", label: "HVAC", icon: House },
+  { id: "snow-removal", label: "Snow removal", icon: Snowflake },
+  { id: "lawn-care", label: "Lawn care", icon: Sprout },
   { id: "electricity", label: "Electricity", icon: Sparkles },
   { id: "water", label: "Water", icon: Droplets },
-  { id: "cleaning", label: "Cleaning", icon: Settings },
+  { id: "cleaning", label: "Cleaning", icon: BrushCleaning },
   { id: "music", label: "Music", icon: Music4 },
   { id: "food", label: "Food", icon: Heart },
   { id: "meal", label: "Meal", icon: Utensils },
   { id: "heart", label: "Care", icon: Heart },
   { id: "hand-giving", label: "Giving", icon: HandCoins },
   { id: "donation", label: "Donation", icon: HandCoins },
+  { id: "purchase", label: "Purchase", icon: ShoppingCart },
 ];
 
 const iconChoiceMap = new Map(iconChoices.map((choice) => [choice.id, choice]));
 
-export const getIconComponent = (iconId?: string) => iconChoiceMap.get(iconId ?? "")?.icon ?? Church;
+const customIconComponents = new Map<string, LucideIcon>();
+
+export const getIconComponent = (iconId?: string) => {
+  const selectedIcon = iconChoiceMap.get(iconId ?? "")?.icon;
+  if (selectedIcon || !iconId?.trim()) return selectedIcon ?? Church;
+
+  const existingComponent = customIconComponents.get(iconId);
+  if (existingComponent) return existingComponent;
+
+  const CustomIcon = ((props) => createElement(DynamicLucideIcon, { ...props, name: iconId })) as LucideIcon;
+  customIconComponents.set(iconId, CustomIcon);
+  return CustomIcon;
+};
 
 export const categoryLabels: Record<ChurchExpenseCategory, string> = {
   PROJECT: "Project",
