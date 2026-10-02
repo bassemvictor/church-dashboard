@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { getUrl, remove, uploadData } from "aws-amplify/storage";
+import pica from "pica";
 import { createElement } from "react";
 import {
   BookOpen,
@@ -206,7 +207,11 @@ export const newsCategoryLabels: Record<ChurchNewsCategory, string> = {
 export const storagePathPrefix = "public/expenses";
 const minimumExpenseImageWidth = 600;
 const minimumExpenseImageHeight = 400;
-const maximumExpenseImageDimension = 1920;
+// Project cards display images at a 6:5 ratio (96 × 80). Preparing that exact
+// ratio once avoids a second crop and resize by the browser for every display.
+const expenseImageAspectRatio = 6 / 5;
+const maximumExpenseImageWidth = 1200;
+const maximumExpenseImageHeight = 1000;
 
 const getImageDimensions = (file: File) =>
   new Promise<{ width: number; height: number }>((resolve, reject) => {
@@ -237,16 +242,15 @@ const validateExpenseImage = async (file: File) => {
   }
 };
 
-const downscaleExpenseImage = async (file: File) => {
+const prepareExpenseImage = async (file: File) => {
   const { width, height } = await getImageDimensions(file);
-  const largestDimension = Math.max(width, height);
-  if (largestDimension <= maximumExpenseImageDimension) {
-    return file;
-  }
-
-  const scale = maximumExpenseImageDimension / largestDimension;
-  const targetWidth = Math.round(width * scale);
-  const targetHeight = Math.round(height * scale);
+  const cropWidth = Math.round(Math.min(width, height * expenseImageAspectRatio));
+  const cropHeight = Math.round(cropWidth / expenseImageAspectRatio);
+  // Never enlarge an upload: it cannot add detail and makes compression artifacts
+  // more visible. The maximum remains 12.5× the dimensions used on the dashboard.
+  const scale = Math.min(1, maximumExpenseImageWidth / cropWidth, maximumExpenseImageHeight / cropHeight);
+  const targetWidth = Math.round(cropWidth * scale);
+  const targetHeight = Math.round(cropHeight * scale);
   const objectUrl = URL.createObjectURL(file);
   const image = new Image();
 
@@ -257,27 +261,45 @@ const downscaleExpenseImage = async (file: File) => {
       image.src = objectUrl;
     });
 
-    const canvas = document.createElement("canvas");
-    canvas.width = targetWidth;
-    canvas.height = targetHeight;
-    const context = canvas.getContext("2d");
-    if (!context) {
+    const sourceCanvas = document.createElement("canvas");
+    sourceCanvas.width = cropWidth;
+    sourceCanvas.height = cropHeight;
+    const sourceContext = sourceCanvas.getContext("2d");
+    const destinationCanvas = document.createElement("canvas");
+    destinationCanvas.width = targetWidth;
+    destinationCanvas.height = targetHeight;
+
+    if (!sourceContext) {
       throw new Error("Your browser could not prepare this image for upload.");
     }
 
-    context.imageSmoothingEnabled = true;
-    context.imageSmoothingQuality = "high";
-    context.drawImage(image, 0, 0, targetWidth, targetHeight);
+    // JPEG has no transparency; give transparent source images a clean background.
+    sourceContext.fillStyle = "#ffffff";
+    sourceContext.fillRect(0, 0, cropWidth, cropHeight);
 
-    const outputType = file.type === "image/png" ? "image/png" : "image/jpeg";
-    const extension = outputType === "image/png" ? ".png" : ".jpg";
-    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, outputType, 0.92));
+    // Centre-crop the image to the same aspect ratio as the dashboard thumbnail.
+    // This makes the result predictable and prevents CSS object-cover from making
+    // another crop at display time.
+    sourceContext.drawImage(
+      image,
+      Math.round((width - cropWidth) / 2),
+      Math.round((height - cropHeight) / 2),
+      cropWidth,
+      cropHeight,
+      0,
+      0,
+      cropWidth,
+      cropHeight,
+    );
+
+    await pica().resize(sourceCanvas, destinationCanvas, { quality: 3 });
+    const blob = await pica().toBlob(destinationCanvas, "image/jpeg", 0.9);
     if (!blob) {
       throw new Error("The selected file could not be prepared for upload.");
     }
 
-    return new File([blob], `${file.name.replace(/\.[^.]+$/, "") || "project-image"}${extension}`, {
-      type: outputType,
+    return new File([blob], `${file.name.replace(/\.[^.]+$/, "") || "project-image"}.jpg`, {
+      type: "image/jpeg",
       lastModified: file.lastModified,
     });
   } finally {
@@ -287,7 +309,7 @@ const downscaleExpenseImage = async (file: File) => {
 
 export const uploadExpenseImage = async (file: File) => {
   await validateExpenseImage(file);
-  const preparedFile = await downscaleExpenseImage(file);
+  const preparedFile = await prepareExpenseImage(file);
   const extension = preparedFile.name.includes(".") ? preparedFile.name.slice(preparedFile.name.lastIndexOf(".")) : "";
   const safeExtension = extension.toLowerCase().replace(/[^a-z0-9.]/g, "");
   const key = `${storagePathPrefix}/${crypto.randomUUID()}${safeExtension}`;
