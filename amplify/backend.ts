@@ -105,6 +105,12 @@ httpApi.addRoutes({
 });
 
 httpApi.addRoutes({
+  path: "/did-you-know",
+  methods: [HttpMethod.GET],
+  integration,
+});
+
+httpApi.addRoutes({
   path: "/liturgies",
   methods: [HttpMethod.GET],
   integration,
@@ -124,6 +130,7 @@ httpApi.addRoutes({
 
 addProtectedRoutes("/admin/expenses", [HttpMethod.GET]);
 addProtectedRoutes("/admin/news", [HttpMethod.GET]);
+addProtectedRoutes("/admin/did-you-know", [HttpMethod.GET]);
 addProtectedRoutes("/admin/settings", [HttpMethod.GET, HttpMethod.PUT]);
 addProtectedRoutes("/expenses", [HttpMethod.POST]);
 addProtectedRoutes("/expenses/order", [HttpMethod.PUT]);
@@ -135,6 +142,10 @@ addProtectedRoutes("/news/order", [HttpMethod.PUT]);
 addProtectedRoutes("/news/{id}/approve", [HttpMethod.PUT]);
 addProtectedRoutes("/news/{id}/active", [HttpMethod.PUT]);
 addProtectedRoutes("/news/{id}", [HttpMethod.GET, HttpMethod.PUT, HttpMethod.DELETE]);
+addProtectedRoutes("/did-you-know", [HttpMethod.POST]);
+addProtectedRoutes("/did-you-know/order", [HttpMethod.PUT]);
+addProtectedRoutes("/did-you-know/{id}/active", [HttpMethod.PUT]);
+addProtectedRoutes("/did-you-know/{id}", [HttpMethod.GET, HttpMethod.PUT, HttpMethod.DELETE]);
 
 backend.addOutput({
   custom: {

@@ -5,6 +5,7 @@ import {
   ExternalLink,
   LogOut,
   Megaphone,
+  Lightbulb,
   Menu,
   Monitor,
   Settings,
@@ -22,6 +23,7 @@ const navItems = [
   { href: "/admin", label: "Overview", icon: Monitor },
   { href: "/admin/expenses", label: "Expenses", icon: WalletCards },
   { href: "/admin/news", label: "Church News", icon: Megaphone },
+  { href: "/admin/did-you-know", label: "Did You Know", icon: Lightbulb },
   { href: "/admin/pending-approvals", label: "Pending Approvals", icon: ClipboardCheck },
   { href: "/admin/settings", label: "Settings", icon: Settings },
 ];
@@ -35,12 +37,17 @@ const pageMeta: Record<string, { section: string; title: string; description: st
   "/admin/expenses": {
     section: "Projects & Expenses",
     title: "Expenses & Projects Control",
-    description: "Update budgets, visuals, ordering, and public-facing status details.",
+    description: "Update costs, visuals, ordering, and public-facing status details.",
   },
   "/admin/news": {
     section: "Church News",
     title: "Announcements Control",
     description: "Publish, prioritize, and schedule public announcements for the church display.",
+  },
+  "/admin/did-you-know": {
+    section: "Did You Know",
+    title: "Facts Control",
+    description: "Create, schedule, order, and publish concise facts for the church display.",
   },
   "/admin/pending-approvals": {
     section: "Pending Approval",

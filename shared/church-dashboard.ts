@@ -42,6 +42,9 @@ export type ChurchExpense = {
   category: ChurchExpenseCategory;
   totalBudget: number;
   fundedAmount: number;
+  showFunded?: boolean;
+  showProgress?: boolean;
+  showStatus?: boolean;
   imageUrl?: string;
   imageKey?: string;
   icon?: string;
@@ -62,6 +65,7 @@ export type DashboardSettings = {
     showDate: boolean;
     showExpensesPage: boolean;
     showNewsPage: boolean;
+    showDidYouKnowPage: boolean;
     refreshIntervalSeconds: number;
     mainViewRotationIntervalSeconds: number;
     mainVerseText?: string;
@@ -75,6 +79,10 @@ export type DashboardSettings = {
     itemsPerPage: number;
   };
   news: {
+    dashboardTitle: string;
+    itemsPerPage: number;
+  };
+  didYouKnow: {
     dashboardTitle: string;
     itemsPerPage: number;
   };
@@ -105,6 +113,20 @@ export type ChurchNews = {
   updatedAt: string;
 };
 
+export type ChurchDidYouKnow = {
+  id: string;
+  factText: string;
+  highlightText?: string;
+  supportingText?: string;
+  icon?: string;
+  visibleFrom?: string;
+  visibleUntil?: string;
+  active: boolean;
+  displayOrder: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type ChurchLiturgy = {
   id: string;
   date: string;
@@ -125,6 +147,11 @@ export type NewsListResponse = {
   generatedAt: string;
 };
 
+export type DidYouKnowListResponse = {
+  items: ChurchDidYouKnow[];
+  generatedAt: string;
+};
+
 export type DashboardSettingsResponse = {
   settings: DashboardSettings;
 };
@@ -132,6 +159,7 @@ export type DashboardSettingsResponse = {
 export type PublicDashboardResponse = {
   projects: ChurchExpense[];
   news: ChurchNews[];
+  didYouKnow: ChurchDidYouKnow[];
   liturgies: ChurchLiturgy[];
   settings: DashboardSettings;
   serverTime: string;
@@ -148,6 +176,9 @@ export type CreateChurchExpenseInput = {
   category: ChurchExpenseCategory;
   totalBudget: number;
   fundedAmount: number;
+  showFunded?: boolean;
+  showProgress?: boolean;
+  showStatus?: boolean;
   imageUrl?: string;
   imageKey?: string;
   icon?: string;
@@ -177,6 +208,18 @@ export type CreateChurchNewsInput = {
 
 export type UpdateChurchNewsInput = CreateChurchNewsInput;
 
+export type CreateChurchDidYouKnowInput = {
+  factText: string;
+  highlightText?: string;
+  supportingText?: string;
+  icon?: string;
+  visibleFrom?: string;
+  visibleUntil?: string;
+  active: boolean;
+};
+
+export type UpdateChurchDidYouKnowInput = CreateChurchDidYouKnowInput;
+
 export type ReorderChurchExpensesInput = {
   items: Array<{
     id: string;
@@ -185,6 +228,13 @@ export type ReorderChurchExpensesInput = {
 };
 
 export type ReorderChurchNewsInput = {
+  items: Array<{
+    id: string;
+    displayOrder: number;
+  }>;
+};
+
+export type ReorderChurchDidYouKnowInput = {
   items: Array<{
     id: string;
     displayOrder: number;
@@ -222,6 +272,7 @@ export const defaultDashboardSettings: DashboardSettings = {
     showDate: true,
     showExpensesPage: true,
     showNewsPage: true,
+    showDidYouKnowPage: true,
     refreshIntervalSeconds: 300,
     mainViewRotationIntervalSeconds: 30,
     mainVerseText:
@@ -237,6 +288,10 @@ export const defaultDashboardSettings: DashboardSettings = {
   },
   news: {
     dashboardTitle: "CHURCH NEWS & ANNOUNCEMENTS",
+    itemsPerPage: 4,
+  },
+  didYouKnow: {
+    dashboardTitle: "DID YOU KNOW?",
     itemsPerPage: 4,
   },
   liturgy: {
@@ -333,3 +388,13 @@ export const isNewsVisible = (
     visibleUntil: news.endDate,
   }, now) &&
   isNewsApproved(news);
+
+export const isDidYouKnowVisible = (
+  item: Pick<ChurchDidYouKnow, "active" | "visibleFrom" | "visibleUntil">,
+  now: Date | string | number = new Date(),
+) =>
+  item.active &&
+  isVisibleWithinWindow({
+    visibleFrom: item.visibleFrom,
+    visibleUntil: item.visibleUntil,
+  }, now);

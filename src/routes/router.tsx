@@ -6,6 +6,7 @@ import { AdminLayout } from "../components/dashboard/admin-layout";
 import { AdminExpensesPage } from "../pages/admin-expenses-page";
 import { AdminHomePage } from "../pages/admin-home-page";
 import { AdminNewsPage } from "../pages/admin-news-page";
+import { AdminDidYouKnowPage } from "../pages/admin-did-you-know-page";
 import { AdminPendingApprovalsPage } from "../pages/admin-pending-approvals-page";
 import { AdminSettingsPage } from "../pages/admin-settings-page";
 import { AuthPage } from "../pages/auth-page";
@@ -42,6 +43,10 @@ export const router = createBrowserRouter([
       {
         path: "news",
         element: <AdminNewsPage />,
+      },
+      {
+        path: "did-you-know",
+        element: <AdminDidYouKnowPage />,
       },
       {
         path: "pending-approvals",

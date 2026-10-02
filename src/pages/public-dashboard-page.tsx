@@ -5,6 +5,12 @@ import { Link } from "react-router-dom";
 import { DashboardQrCode } from "../components/dashboard/dashboard-qr-code";
 import { isAdminUser, useAuth } from "../lib/auth";
 import {
+  getEnabledDashboardViews,
+  getNextDashboardViewState,
+  getSafeDashboardView,
+  type DashboardView,
+} from "../../shared/dashboard-rotation";
+import {
   dashboardStatusMeta,
   formatCurrency,
   getClampedFundingPercentage,
@@ -12,6 +18,7 @@ import {
   getFundingPercentage,
   getIconComponent,
   isExpenseVisible,
+  isDidYouKnowVisible,
   isNewsVisible,
   getSanitizedItemsPerPage,
   getSanitizedRefreshIntervalSeconds,
@@ -25,81 +32,10 @@ import {
   defaultDashboardSettings,
   type ChurchExpense,
   type ChurchNews,
+  type ChurchDidYouKnow,
   type PublicDashboardResponse,
 } from "../../shared/church-dashboard";
 
-type DashboardView = "projects" | "news";
-
-const getEnabledDashboardViews = (settings: typeof defaultDashboardSettings): DashboardView[] => {
-  const views: DashboardView[] = [];
-
-  if (settings.common.showExpensesPage) {
-    views.push("projects");
-  }
-
-  if (settings.common.showNewsPage) {
-    views.push("news");
-  }
-
-  return views;
-};
-
-const getSafeDashboardView = (activeView: DashboardView, enabledViews: DashboardView[]) =>
-  enabledViews.includes(activeView) ? activeView : (enabledViews[0] ?? null);
-
-const getNextDashboardViewState = ({
-  activeView,
-  expensePageIndex,
-  newsPageIndex,
-  projectPageCount,
-  newsPageCount,
-  enabledViews,
-}: {
-  activeView: DashboardView;
-  expensePageIndex: number;
-  newsPageIndex: number;
-  projectPageCount: number;
-  newsPageCount: number;
-  enabledViews: DashboardView[];
-}) => {
-  const currentIndex = enabledViews.indexOf(activeView);
-
-  if (currentIndex === -1) {
-    return null;
-  }
-
-  if (activeView === "projects") {
-    if (expensePageIndex < projectPageCount - 1) {
-      return {
-        activeView: "projects" as const,
-        expensePageIndex: expensePageIndex + 1,
-        newsPageIndex,
-      };
-    }
-
-    const nextView = enabledViews[(currentIndex + 1) % enabledViews.length] ?? "projects";
-    return {
-      activeView: nextView,
-      expensePageIndex: 0,
-      newsPageIndex: 0,
-    };
-  }
-
-  if (newsPageIndex < newsPageCount - 1) {
-    return {
-      activeView: "news" as const,
-      expensePageIndex,
-      newsPageIndex: newsPageIndex + 1,
-    };
-  }
-
-  const nextView = enabledViews[(currentIndex + 1) % enabledViews.length] ?? "news";
-  return {
-    activeView: nextView,
-    expensePageIndex: 0,
-    newsPageIndex: 0,
-  };
-};
 
 const formatClock = (value: Date) =>
   new Intl.DateTimeFormat("en-CA", {
@@ -260,6 +196,7 @@ const getLocalDateKey = (value: Date) => {
 const buildEmptyPayload = (): PublicDashboardResponse => ({
   projects: [],
   news: [],
+  didYouKnow: [],
   liturgies: [],
   settings: defaultDashboardSettings,
   serverTime: new Date().toISOString(),
@@ -389,103 +326,62 @@ const DashboardHeader = ({
 );
 
 const ProjectsView = ({ items, todayDateKey }: { items: ChurchExpense[]; todayDateKey: string }) => (
-  <>
-    <div className="hidden grid-cols-[2.1fr_1.5fr_1fr_1.6fr_0.7fr_1fr] gap-3 border-b border-[#eadfcf] px-3 pb-2 text-xs font-semibold uppercase tracking-[0.24em] text-[#7f6b49] lg:grid">
-      <span>Project</span>
-      <span>Description</span>
-      <span>Budget</span>
-      <span>Funded</span>
-      <span>Progress</span>
-      <span>Status</span>
-    </div>
+  <div className="space-y-3 pt-2">
+    {items.map((expense) => {
+      const Icon = getIconComponent(expense.icon);
+      const percentage = getFundingPercentage(expense);
+      const progress = getClampedFundingPercentage(expense);
+      const status = getComputedStatus(expense);
+      const statusMeta = dashboardStatusMeta[status];
+      const dueMeta = getExpenseDueMeta(expense.paymentDate, todayDateKey);
+      const showFunded = expense.showFunded ?? true;
+      const showProgress = expense.showProgress ?? true;
+      const showStatus = expense.showStatus ?? true;
+      const visibleMetrics = Number(showFunded) + Number(showProgress) + Number(showStatus);
+      const gridClass = visibleMetrics === 3
+        ? "lg:grid-cols-[2.1fr_1.5fr_0.8fr_0.9fr_0.9fr_1.25fr]"
+        : visibleMetrics === 2
+          ? "lg:grid-cols-[2fr_1.65fr_0.9fr_1fr_1.35fr]"
+          : visibleMetrics === 1
+            ? "lg:grid-cols-[2fr_1.9fr_1fr_1.45fr]"
+            : "lg:grid-cols-[1.7fr_2.35fr_0.85fr]";
 
-    <div className="space-y-2 pt-2">
-      {items.map((expense) => {
-        const Icon = getIconComponent(expense.icon);
-        const percentage = getFundingPercentage(expense);
-        const progress = getClampedFundingPercentage(expense);
-        const status = getComputedStatus(expense);
-        const statusMeta = dashboardStatusMeta[status];
-        const dueMeta = getExpenseDueMeta(expense.paymentDate, todayDateKey);
-
-        return (
-          <article
-            className="grid gap-3 rounded-[1.4rem] border border-[#ede3d2] bg-[#fffdfa]/96 p-3 shadow-[0_14px_36px_rgba(31,42,68,0.05)] lg:grid-cols-[2.1fr_1.5fr_1fr_1.6fr_0.7fr_1fr] lg:items-center"
-            key={expense.id}
-          >
-            <div className="flex items-center gap-3">
-              <img
-                alt={expense.title}
-                className="h-20 w-24 rounded-[1rem] border border-[#e6d7bb] object-cover"
-                src={expense.imageUrl || "/church-hero.png"}
-              />
-              <div className="min-w-0">
-                <div className="flex items-center gap-2.5">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#112947] text-white">
-                    <Icon className="h-6 w-6" />
-                  </div>
-                  <div className="min-w-0">
-                    <h2 className="text-xl font-semibold uppercase leading-tight tracking-[0.03em] text-[#132946]">
-                      {expense.title}
-                    </h2>
-                    <p className="mt-1 text-xs font-semibold uppercase tracking-[0.24em] text-[#8d6a2f]">
-                      Project
-                    </p>
-                  </div>
-                </div>
+      return (
+        <article className={`grid gap-4 rounded-[1.4rem] border border-[#ede3d2] bg-[#fffdfa]/96 p-4 shadow-[0_14px_36px_rgba(31,42,68,0.05)] lg:items-center ${gridClass}`} key={expense.id}>
+          <div className="flex items-center gap-3">
+            {expense.imageUrl ? (
+              <img alt={expense.title} className="h-20 w-24 rounded-[1rem] border border-[#e6d7bb] object-cover" src={expense.imageUrl} />
+            ) : (
+              <div className="flex h-20 w-24 shrink-0 items-center justify-center rounded-[1rem] bg-[#112947] text-white">
+                <Icon className="h-9 w-9" />
+              </div>
+            )}
+            <div className="min-w-0">
+              <div className="flex items-center gap-2.5">
+                <div className="min-w-0"><h2 className="text-xl font-semibold uppercase leading-tight tracking-[0.03em] text-[#132946]">{expense.title}</h2><p className="mt-1 text-xs font-semibold uppercase tracking-[0.24em] text-[#8d6a2f]">Project</p></div>
               </div>
             </div>
-
-            <div>
-              <p className="text-sm leading-relaxed text-[#415a78] lg:text-base">{expense.description}</p>
-              {dueMeta ? (
-                <div className={`mt-3 inline-flex items-center gap-2.5 rounded-full border px-3 py-1.5 ${dueMeta.accentClassName}`}>
-                  <span className="text-[0.58rem] font-bold uppercase tracking-[0.22em]">{dueMeta.label}</span>
-                  <span className="text-[0.82rem] font-semibold tracking-[0.03em]">{dueMeta.value}</span>
-                </div>
-              ) : null}
-            </div>
-            <p className="text-2xl font-semibold text-[#132946]">{formatCurrency(expense.totalBudget)}</p>
-
-            <div>
-              <p className={`text-2xl font-semibold ${statusMeta.tone}`}>{formatCurrency(expense.fundedAmount)}</p>
-              <div className="mt-2 h-4 rounded-full bg-[#ece8e1]">
-                <div
-                  className={`h-4 rounded-full bg-gradient-to-r ${statusMeta.trackTone}`}
-                  style={{ width: `${progress}%` }}
-                />
-              </div>
-            </div>
-
-            <p className={`text-2xl font-semibold ${statusMeta.tone}`}>{Math.round(percentage)}%</p>
-
-            <div className="flex items-center gap-2.5">
-              {status === "FUNDED" || status === "ON_TRACK" ? (
-                <CheckCircle2 className={`h-10 w-10 shrink-0 ${statusMeta.tone}`} />
-              ) : (
-                <CircleAlert className={`h-10 w-10 shrink-0 ${statusMeta.tone}`} />
-              )}
-              <div>
-                <p className={`text-lg font-semibold uppercase ${statusMeta.tone}`}>
-                  {expense.customStatusText || statusMeta.label}
-                </p>
-                <p className="text-sm text-[#556b86]">{expense.customSubText || statusMeta.subtext}</p>
-              </div>
-            </div>
-          </article>
-        );
-      })}
-
-      {!items.length ? (
-        <div className="flex min-h-[320px] items-center justify-center rounded-[1.5rem] border border-dashed border-[#d7c5a3] bg-[#fffaf2] px-5 text-center">
-          <div>
-            <p className="text-2xl font-semibold text-[#112947]">No active projects to display yet</p>
-            <p className="mt-2 text-sm text-[#556b86]">Add projects from the admin area and they will appear here automatically.</p>
           </div>
-        </div>
-      ) : null}
-    </div>
-  </>
+
+          <div>
+            <p className="text-sm leading-relaxed text-[#415a78] lg:text-base">{expense.description}</p>
+            {dueMeta ? <div className={`mt-3 inline-flex items-center gap-2.5 rounded-full border px-3 py-1.5 ${dueMeta.accentClassName}`}><span className="text-[0.58rem] font-bold uppercase tracking-[0.22em]">{dueMeta.label}</span><span className="text-[0.82rem] font-semibold tracking-[0.03em]">{dueMeta.value}</span></div> : null}
+          </div>
+
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#8d6a2f]">Cost</p>
+            <p className="mt-1 text-2xl font-semibold text-[#132946]">{formatCurrency(expense.totalBudget)}</p>
+          </div>
+
+          {showFunded ? <div><p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#8d6a2f]">Funded</p><p className={`mt-1 text-2xl font-semibold ${statusMeta.tone}`}>{formatCurrency(expense.fundedAmount)}</p></div> : null}
+          {showProgress ? <div><p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#8d6a2f]">Progress</p><div className="mt-2 h-4 rounded-full bg-[#ece8e1]"><div className={`h-4 rounded-full bg-gradient-to-r ${statusMeta.trackTone}`} style={{ width: `${progress}%` }} /></div><p className={`mt-1 text-lg font-semibold ${statusMeta.tone}`}>{Math.round(percentage)}%</p></div> : null}
+          {showStatus ? <div className="flex items-center gap-2.5"><>{status === "FUNDED" || status === "ON_TRACK" ? <CheckCircle2 className={`h-10 w-10 shrink-0 ${statusMeta.tone}`} /> : <CircleAlert className={`h-10 w-10 shrink-0 ${statusMeta.tone}`} />}</><div><p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#8d6a2f]">Status</p><p className={`mt-1 text-lg font-semibold uppercase ${statusMeta.tone}`}>{expense.customStatusText || statusMeta.label}</p><p className="text-sm text-[#556b86]">{expense.customSubText || statusMeta.subtext}</p></div></div> : null}
+        </article>
+      );
+    })}
+
+    {!items.length ? <div className="flex min-h-[320px] items-center justify-center rounded-[1.5rem] border border-dashed border-[#d7c5a3] bg-[#fffaf2] px-5 text-center"><div><p className="text-2xl font-semibold text-[#112947]">No active projects to display yet</p><p className="mt-2 text-sm text-[#556b86]">Add projects from the admin area and they will appear here automatically.</p></div></div> : null}
+  </div>
 );
 
 const NewsView = ({
@@ -564,6 +460,52 @@ const NewsView = ({
   </div>
 );
 
+const DidYouKnowView = ({ items }: { items: ChurchDidYouKnow[] }) => (
+  <div className="grid content-start gap-4 md:grid-cols-2">
+    {items.map((item) => {
+      const Icon = getIconComponent(item.icon);
+
+      return (
+        <article
+          className="relative self-start overflow-hidden rounded-[1.7rem] border border-[#eadfcf] bg-[#fffdfa]/96 p-5 shadow-[0_14px_36px_rgba(31,42,68,0.05)] lg:p-7"
+          key={item.id}
+        >
+          <div className="absolute right-0 top-0 h-24 w-24 rounded-bl-[5rem] bg-[#f8f0df]" />
+          <div className="relative flex items-start gap-4">
+            <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-[1.25rem] bg-[#112947] text-white shadow-[0_10px_20px_rgba(17,41,71,0.16)] lg:h-20 lg:w-20">
+              <Icon className="h-8 w-8 lg:h-10 lg:w-10" />
+            </div>
+            <p className="max-h-[8.2rem] flex-1 overflow-hidden pt-1 text-[clamp(1.3rem,1.8vw,2.1rem)] font-medium leading-[1.27] text-[#183654]">
+              {item.factText}
+            </p>
+          </div>
+          <div className="relative mt-4">
+            {item.highlightText ? (
+              <p className="mt-3 text-[clamp(2rem,3.3vw,3.8rem)] font-semibold leading-none tracking-[-0.035em] text-[#a4772d]">
+                {item.highlightText}
+              </p>
+            ) : null}
+            {item.supportingText ? (
+              <p className="mt-4 max-h-[5rem] overflow-hidden text-[clamp(1rem,1.2vw,1.35rem)] leading-relaxed text-[#526a82]">
+                {item.supportingText}
+              </p>
+            ) : null}
+          </div>
+        </article>
+      );
+    })}
+
+    {!items.length ? (
+      <div className="col-span-full flex min-h-[320px] items-center justify-center rounded-[1.5rem] border border-dashed border-[#d7c5a3] bg-[#fffaf2] px-5 text-center">
+        <div>
+          <p className="text-2xl font-semibold text-[#112947]">No Did You Know facts to display yet</p>
+          <p className="mt-2 text-sm text-[#556b86]">Add facts from the admin area and they will appear here automatically.</p>
+        </div>
+      </div>
+    ) : null}
+  </div>
+);
+
 const RotationClock = ({ progress }: { progress: number }) => {
   const size = 40;
   const strokeWidth = 4;
@@ -619,6 +561,7 @@ export const PublicDashboardPage = () => {
   const [isVisible, setIsVisible] = useState(true);
   const [expensePageIndex, setExpensePageIndex] = useState(0);
   const [newsPageIndex, setNewsPageIndex] = useState(0);
+  const [didYouKnowPageIndex, setDidYouKnowPageIndex] = useState(0);
   const [rotationProgress, setRotationProgress] = useState(0);
   const [rotationCycleSeed, setRotationCycleSeed] = useState(0);
   const payload = dashboardQuery.data ?? buildEmptyPayload();
@@ -626,15 +569,21 @@ export const PublicDashboardPage = () => {
   const enabledViews = useMemo(() => getEnabledDashboardViews(settings), [settings]);
   const visibleProjects = useMemo(() => payload.projects.filter((item) => isExpenseVisible(item, now)), [now, payload.projects]);
   const visibleNews = useMemo(() => payload.news.filter((item) => isNewsVisible(item, now)), [now, payload.news]);
+  const visibleDidYouKnow = useMemo(
+    () => (payload.didYouKnow ?? []).filter((item) => isDidYouKnowVisible(item, now)),
+    [now, payload.didYouKnow],
+  );
   const visibleAnnouncementNews = visibleNews;
   const showAdminShortcut = status === "authenticated" && !!user && isAdminUser(user.groups);
   const projectItemsPerPage = getSanitizedItemsPerPage(settings.expenses.itemsPerPage);
   const newsItemsPerPage = getSanitizedItemsPerPage(settings.news.itemsPerPage);
+  const didYouKnowItemsPerPage = getSanitizedItemsPerPage(settings.didYouKnow.itemsPerPage);
   const upcomingLiturgiesCount = getSanitizedUpcomingLiturgiesCount(settings.liturgy.upcomingLiturgiesCount);
   const rotationIntervalSeconds = getSanitizedRotationIntervalSeconds(settings.common.mainViewRotationIntervalSeconds);
   const refreshIntervalSeconds = getSanitizedRefreshIntervalSeconds(settings.common.refreshIntervalSeconds);
   const projectPageCount = Math.max(1, Math.ceil(visibleProjects.length / projectItemsPerPage));
   const newsPageCount = Math.max(1, Math.ceil(visibleAnnouncementNews.length / newsItemsPerPage));
+  const didYouKnowPageCount = Math.max(1, Math.ceil(visibleDidYouKnow.length / didYouKnowItemsPerPage));
   const currentView = getSafeDashboardView(activeView, enabledViews);
   const todayDateKey = getLocalDateKey(now);
 
@@ -663,6 +612,10 @@ export const PublicDashboardPage = () => {
   }, [newsPageCount]);
 
   useEffect(() => {
+    setDidYouKnowPageIndex((current) => Math.min(current, didYouKnowPageCount - 1));
+  }, [didYouKnowPageCount]);
+
+  useEffect(() => {
     if (dashboardQuery.isLoading || !dashboardQuery.data || !currentView) {
       setRotationProgress(0);
       return;
@@ -686,8 +639,10 @@ export const PublicDashboardPage = () => {
           activeView: currentView,
           expensePageIndex,
           newsPageIndex,
+          didYouKnowPageIndex,
           projectPageCount,
           newsPageCount,
+          didYouKnowPageCount,
           enabledViews,
         });
 
@@ -700,6 +655,7 @@ export const PublicDashboardPage = () => {
         setActiveView(nextState.activeView);
         setExpensePageIndex(nextState.expensePageIndex);
         setNewsPageIndex(nextState.newsPageIndex);
+        setDidYouKnowPageIndex(nextState.didYouKnowPageIndex);
         setIsVisible(true);
         setRotationProgress(0);
       }, 250);
@@ -719,6 +675,8 @@ export const PublicDashboardPage = () => {
     expensePageIndex,
     newsPageIndex,
     newsPageCount,
+    didYouKnowPageIndex,
+    didYouKnowPageCount,
     projectPageCount,
     enabledViews,
     currentView,
@@ -737,8 +695,10 @@ export const PublicDashboardPage = () => {
       setActiveView(view);
       if (view === "projects") {
         setExpensePageIndex(0);
-      } else {
+      } else if (view === "news") {
         setNewsPageIndex(0);
+      } else {
+        setDidYouKnowPageIndex(0);
       }
       setIsVisible(true);
       setRotationProgress(0);
@@ -764,6 +724,15 @@ export const PublicDashboardPage = () => {
     [newsItemsPerPage, newsPageIndex, visibleAnnouncementNews],
   );
 
+  const pagedDidYouKnow = useMemo(
+    () =>
+      visibleDidYouKnow.slice(
+        didYouKnowPageIndex * didYouKnowItemsPerPage,
+        didYouKnowPageIndex * didYouKnowItemsPerPage + didYouKnowItemsPerPage,
+      ),
+    [didYouKnowItemsPerPage, didYouKnowPageIndex, visibleDidYouKnow],
+  );
+
   const upcomingLiturgies = useMemo(
     () =>
       payload.liturgies
@@ -773,9 +742,14 @@ export const PublicDashboardPage = () => {
     [payload.liturgies, todayDateKey, upcomingLiturgiesCount],
   );
 
-  const currentTitle = currentView === "projects" ? settings.expenses.dashboardTitle : settings.news.dashboardTitle;
+  const currentTitle = currentView === "projects"
+    ? settings.expenses.dashboardTitle
+    : currentView === "news"
+      ? settings.news.dashboardTitle
+      : settings.didYouKnow.dashboardTitle;
   const projectsPageLabel = `${expensePageIndex + 1} / ${projectPageCount}`;
   const newsPageLabel = `${newsPageIndex + 1} / ${newsPageCount}`;
+  const didYouKnowPageLabel = `${didYouKnowPageIndex + 1} / ${didYouKnowPageCount}`;
 
   if (dashboardQuery.isLoading && !dashboardQuery.data) {
     return (
@@ -858,6 +832,22 @@ export const PublicDashboardPage = () => {
                         ) : null}
                       </button>
                     ) : null}
+                    {enabledViews.includes("didYouKnow") ? (
+                      <button
+                        className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[0.64rem] font-semibold uppercase tracking-[0.14em] transition-colors ${
+                          currentView === "didYouKnow" ? "bg-[#112947] text-white" : "bg-[#f3ead8] text-[#8d6a2f] hover:bg-[#eadcc3]"
+                        }`}
+                        onClick={() => handleViewSelect("didYouKnow")}
+                        type="button"
+                      >
+                        Did You Know
+                        {currentView === "didYouKnow" ? (
+                          <span className="rounded-full bg-white/14 px-1.5 py-0.5 text-[0.56rem] tracking-[0.1em] text-white">
+                            {didYouKnowPageLabel}
+                          </span>
+                        ) : null}
+                      </button>
+                    ) : null}
                   </div>
                   <RotationClock progress={rotationProgress} />
                 </>
@@ -872,14 +862,16 @@ export const PublicDashboardPage = () => {
                   <p className="text-sm font-semibold uppercase tracking-[0.24em] text-[#8d6a2f]">Nothing enabled</p>
                   <p className="mt-4 text-2xl font-semibold text-[#112947]">The public dashboard is currently hidden.</p>
                   <p className="mt-3 text-sm text-[#556b86]">
-                    Turn on the Projects & Expenses page or the Church News page in settings to show content here.
+                    Turn on a public dashboard page in settings to show content here.
                   </p>
                 </div>
               </div>
             ) : currentView === "projects" ? (
                   <ProjectsView items={pagedProjects} todayDateKey={todayDateKey} />
-            ) : (
+            ) : currentView === "news" ? (
               <NewsView items={pagedNews} liturgies={upcomingLiturgies} />
+            ) : (
+              <DidYouKnowView items={pagedDidYouKnow} />
             )}
           </div>
 

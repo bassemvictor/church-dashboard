@@ -4,6 +4,7 @@ import {
   BookOpen,
   Building2,
   Church,
+  Coins,
   Droplets,
   HandCoins,
   Heart,
@@ -12,6 +13,7 @@ import {
   Settings,
   Sparkles,
   Users,
+  Utensils,
   Wrench,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -23,24 +25,30 @@ import {
   getExpenseApprovalStatus,
   isExpenseVisible,
   isNewsVisible,
+  isDidYouKnowVisible,
   type ApproveChurchExpenseResponse,
   type ChurchExpense,
   type ChurchExpenseCategory,
   type ChurchNews,
+  type ChurchDidYouKnow,
   type ApproveChurchNewsResponse,
   type ChurchNewsCategory,
   type ChurchExpenseStatus,
   type CreateChurchNewsInput,
   type CreateChurchExpenseInput,
+  type CreateChurchDidYouKnowInput,
   type DashboardSettingsResponse,
   type ExpenseListResponse,
   type NewsListResponse,
+  type DidYouKnowListResponse,
   type PublicDashboardResponse,
   type ReorderChurchNewsInput,
   type ReorderChurchExpensesInput,
+  type ReorderChurchDidYouKnowInput,
   type SetChurchItemActiveInput,
   type UpdateChurchNewsInput,
   type UpdateChurchExpenseInput,
+  type UpdateChurchDidYouKnowInput,
   type UpdateDashboardSettingsInput,
   churchNewsCategories,
 } from "../../shared/church-dashboard";
@@ -115,6 +123,7 @@ export const iconChoices: Array<{
   label: string;
   icon: LucideIcon;
 }> = [
+  { id: "coins", label: "Costs", icon: Coins },
   { id: "church", label: "Church", icon: Church },
   { id: "cross", label: "Ministry", icon: Sparkles },
   { id: "book-open", label: "Bible", icon: BookOpen },
@@ -130,6 +139,7 @@ export const iconChoices: Array<{
   { id: "cleaning", label: "Cleaning", icon: Settings },
   { id: "music", label: "Music", icon: Music4 },
   { id: "food", label: "Food", icon: Heart },
+  { id: "meal", label: "Meal", icon: Utensils },
   { id: "heart", label: "Care", icon: Heart },
   { id: "hand-giving", label: "Giving", icon: HandCoins },
   { id: "donation", label: "Donation", icon: HandCoins },
@@ -228,7 +238,19 @@ export const usePublicDashboard = () =>
       const response = await api.get<PublicDashboardResponse>("/dashboard");
       return {
         ...response,
-        projects: await resolveExpenseImageUrls(response.projects),
+        projects: await resolveExpenseImageUrls(response.projects ?? []),
+        news: response.news ?? [],
+        didYouKnow: response.didYouKnow ?? [],
+        liturgies: response.liturgies ?? [],
+        settings: {
+          ...defaultDashboardSettings,
+          ...response.settings,
+          common: { ...defaultDashboardSettings.common, ...response.settings?.common },
+          expenses: { ...defaultDashboardSettings.expenses, ...response.settings?.expenses },
+          news: { ...defaultDashboardSettings.news, ...response.settings?.news },
+          didYouKnow: { ...defaultDashboardSettings.didYouKnow, ...response.settings?.didYouKnow },
+          liturgy: { ...defaultDashboardSettings.liturgy, ...response.settings?.liturgy },
+        },
       };
     },
     refetchInterval: (query) => {
@@ -254,6 +276,15 @@ export const useAdminNews = () =>
     queryKey: ["admin-news"],
     queryFn: async () => {
       const response = await api.get<NewsListResponse>("/admin/news");
+      return response.items;
+    },
+  });
+
+export const useAdminDidYouKnow = () =>
+  useQuery({
+    queryKey: ["admin-did-you-know"],
+    queryFn: async () => {
+      const response = await api.get<DidYouKnowListResponse>("/admin/did-you-know");
       return response.items;
     },
   });
@@ -410,6 +441,60 @@ export const useDeleteNews = () => {
   });
 };
 
+export const useSaveDidYouKnow = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (input: { id?: string; values: CreateChurchDidYouKnowInput | UpdateChurchDidYouKnowInput }) => {
+      if (input.id) {
+        return api.put<ChurchDidYouKnow>(`/did-you-know/${input.id}`, input.values);
+      }
+
+      return api.post<ChurchDidYouKnow>("/did-you-know", input.values);
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["admin-did-you-know"] }),
+        queryClient.invalidateQueries({ queryKey: ["public-did-you-know"] }),
+        queryClient.invalidateQueries({ queryKey: ["public-dashboard"] }),
+      ]);
+    },
+  });
+};
+
+export const useSetDidYouKnowActive = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (input: { didYouKnowId: string; active: boolean }) =>
+      api.put<{ item: ChurchDidYouKnow }>(`/did-you-know/${input.didYouKnowId}/active`, {
+        active: input.active,
+      } satisfies SetChurchItemActiveInput),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["admin-did-you-know"] }),
+        queryClient.invalidateQueries({ queryKey: ["public-did-you-know"] }),
+        queryClient.invalidateQueries({ queryKey: ["public-dashboard"] }),
+      ]);
+    },
+  });
+};
+
+export const useDeleteDidYouKnow = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (didYouKnowId: string) => api.delete<{ success: true }>(`/did-you-know/${didYouKnowId}`),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["admin-did-you-know"] }),
+        queryClient.invalidateQueries({ queryKey: ["public-did-you-know"] }),
+        queryClient.invalidateQueries({ queryKey: ["public-dashboard"] }),
+      ]);
+    },
+  });
+};
+
 export const useReorderExpenses = () => {
   const queryClient = useQueryClient();
 
@@ -434,6 +519,22 @@ export const useReorderNews = () => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["admin-news"] }),
         queryClient.invalidateQueries({ queryKey: ["public-news"] }),
+        queryClient.invalidateQueries({ queryKey: ["public-dashboard"] }),
+      ]);
+    },
+  });
+};
+
+export const useReorderDidYouKnow = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (payload: ReorderChurchDidYouKnowInput) =>
+      api.put<DidYouKnowListResponse>("/did-you-know/order", payload),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["admin-did-you-know"] }),
+        queryClient.invalidateQueries({ queryKey: ["public-did-you-know"] }),
         queryClient.invalidateQueries({ queryKey: ["public-dashboard"] }),
       ]);
     },
@@ -475,4 +576,4 @@ export const getSanitizedUpcomingLiturgiesCount = (value?: number) => {
 };
 
 export const churchNewsCategoryChoices = churchNewsCategories;
-export { getExpenseApprovalStatus, isExpenseVisible, isNewsVisible };
+export { getExpenseApprovalStatus, isExpenseVisible, isNewsVisible, isDidYouKnowVisible };

@@ -10,12 +10,13 @@ import { useDashboardSettings, useSaveSettings } from "../lib/church-dashboard";
 import { cn } from "../lib/utils";
 import type { DashboardSettings } from "../../shared/church-dashboard";
 
-type SettingsSection = "common" | "expenses" | "news" | "liturgy";
+type SettingsSection = "common" | "expenses" | "news" | "didYouKnow" | "liturgy";
 
 const sectionOptions: Array<{ id: SettingsSection; label: string }> = [
   { id: "common", label: "Common" },
   { id: "expenses", label: "Projects & Expenses" },
   { id: "news", label: "Church News" },
+  { id: "didYouKnow", label: "Did You Know" },
   { id: "liturgy", label: "Liturgy Calendar" },
 ];
 
@@ -49,6 +50,13 @@ const sectionCopy: Record<
     saveLabel: "Save news settings",
     successMessage: "Church news settings saved.",
     errorMessage: "Unable to save church news settings right now.",
+  },
+  didYouKnow: {
+    title: "Did You Know Settings",
+    description: "Configure the title and pagination for the Did You Know facts display.",
+    saveLabel: "Save Did You Know settings",
+    successMessage: "Did You Know settings saved.",
+    errorMessage: "Unable to save Did You Know settings right now.",
   },
   liturgy: {
     title: "Liturgy Calendar Settings",
@@ -124,7 +132,7 @@ export const AdminSettingsPage = () => {
 
       <div
         aria-label="Settings sections"
-        className="grid grid-cols-2 gap-2 rounded-xl border border-[#dbe4f0] bg-white p-2 shadow-[0_10px_24px_rgba(16,33,61,0.04)] sm:grid-cols-4"
+        className="grid grid-cols-2 gap-2 rounded-xl border border-[#dbe4f0] bg-white p-2 shadow-[0_10px_24px_rgba(16,33,61,0.04)] sm:grid-cols-3 lg:grid-cols-5"
         role="tablist"
       >
         {sectionOptions.map((section) => {
@@ -292,6 +300,17 @@ export const AdminSettingsPage = () => {
                     />
                     Show news page
                   </label>
+                  <label className="flex items-center gap-3">
+                    <Checkbox
+                      checked={draft.common.showDidYouKnowPage}
+                      onChange={(event) =>
+                        setDraft({
+                          ...draft,
+                          common: { ...draft.common, showDidYouKnowPage: event.target.checked },
+                        })}
+                    />
+                    Show Did You Know page
+                  </label>
                 </div>
               </CardContent>
             </Card>
@@ -428,6 +447,52 @@ export const AdminSettingsPage = () => {
                       })}
                   />
                   <p className="text-xs text-[#6a7f9a]">Maximum number of announcements shown on one screen.</p>
+                </label>
+              </CardContent>
+            </Card>
+          </>
+        ) : null}
+
+        {activeSection === "didYouKnow" ? (
+          <>
+            <Card className="rounded-xl border-[#dbe4f0] bg-white">
+              <CardHeader>
+                <CardTitle>Page identity</CardTitle>
+                <CardDescription>Heading shown when the Did You Know facts screen is active.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <label className="space-y-2">
+                  <span className="text-sm font-medium text-[#112947]">Dashboard title</span>
+                  <Input
+                    value={draft.didYouKnow.dashboardTitle}
+                    onChange={(event) =>
+                      setDraft({
+                        ...draft,
+                        didYouKnow: { ...draft.didYouKnow, dashboardTitle: event.target.value },
+                      })}
+                  />
+                </label>
+              </CardContent>
+            </Card>
+            <Card className="rounded-xl border-[#dbe4f0] bg-white">
+              <CardHeader>
+                <CardTitle>Display settings</CardTitle>
+                <CardDescription>How many facts the public screen shows at one time.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <label className="max-w-[14rem] space-y-2">
+                  <span className="text-sm font-medium text-[#112947]">Facts per page</span>
+                  <Input
+                    min={1}
+                    type="number"
+                    value={draft.didYouKnow.itemsPerPage}
+                    onChange={(event) =>
+                      setDraft({
+                        ...draft,
+                        didYouKnow: { ...draft.didYouKnow, itemsPerPage: Number(event.target.value) || 4 },
+                      })}
+                  />
+                  <p className="text-xs text-[#6a7f9a]">Maximum number of facts shown on one screen.</p>
                 </label>
               </CardContent>
             </Card>

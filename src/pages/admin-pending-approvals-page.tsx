@@ -144,7 +144,7 @@ export const AdminPendingApprovalsPage = () => {
                   <p className="mt-2 text-sm text-[#556b86]">{item.description || "No description provided."}</p>
                   <div className="mt-3 flex flex-wrap gap-3 text-xs uppercase tracking-[0.18em] text-[#8d6a2f]">
                     <span>{formatExpenseDate(item.paymentDate)}</span>
-                    <span>Budget {formatCurrency(item.totalBudget)}</span>
+                    <span>Cost {formatCurrency(item.totalBudget)}</span>
                     <span>Funded {formatCurrency(item.fundedAmount)}</span>
                     {item.visibleFrom ? <span>Visible from {toDateInputValue(item.visibleFrom)}</span> : null}
                     {item.visibleUntil ? <span>Visible until {toDateInputValue(item.visibleUntil)}</span> : null}

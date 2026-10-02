@@ -69,6 +69,9 @@ const buildEmptyDraft = (): ExpenseDraft => ({
   category: "PROJECT",
   totalBudget: 100000,
   fundedAmount: 0,
+  showFunded: false,
+  showProgress: false,
+  showStatus: false,
   imageUrl: "",
   imageKey: "",
   icon: "church",
@@ -89,6 +92,9 @@ const buildDraftFromExpense = (expense: ChurchExpense): ExpenseDraft => ({
   category: expense.category,
   totalBudget: expense.totalBudget,
   fundedAmount: expense.fundedAmount,
+  showFunded: expense.showFunded ?? true,
+  showProgress: expense.showProgress ?? true,
+  showStatus: expense.showStatus ?? true,
   imageUrl: expense.imageUrl ?? "",
   imageKey: expense.imageKey ?? "",
   icon: expense.icon ?? "church",
@@ -261,7 +267,7 @@ const ExpenseEditorDialog = ({
           </label>
 
           <label className="space-y-2">
-            <span className="text-sm font-medium text-[#112947]">Total budget (CAD)</span>
+            <span className="text-sm font-medium text-[#112947]">Total cost (CAD)</span>
             <Input
               min={0}
               onChange={(event) => setDraft((current) => ({ ...current, totalBudget: Number(event.target.value) || 0 }))}
@@ -346,6 +352,27 @@ const ExpenseEditorDialog = ({
             />
             Requires approval before appearing on the public dashboard
           </label>
+
+          <div className="space-y-3 rounded-2xl border border-[#dbe4f0] bg-[#f8fbff] p-4 md:col-span-2">
+            <div>
+              <p className="text-sm font-medium text-[#112947]">Dashboard display</p>
+              <p className="mt-1 text-xs text-[#556b86]">Choose which financial details are shown for this item on the TV dashboard.</p>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-3">
+              <label className="flex items-center gap-3 text-sm text-[#304964]">
+                <Checkbox checked={draft.showFunded ?? true} onChange={(event) => setDraft((current) => ({ ...current, showFunded: event.target.checked }))} />
+                Show funded amount
+              </label>
+              <label className="flex items-center gap-3 text-sm text-[#304964]">
+                <Checkbox checked={draft.showProgress ?? true} onChange={(event) => setDraft((current) => ({ ...current, showProgress: event.target.checked }))} />
+                Show progress
+              </label>
+              <label className="flex items-center gap-3 text-sm text-[#304964]">
+                <Checkbox checked={draft.showStatus ?? true} onChange={(event) => setDraft((current) => ({ ...current, showStatus: event.target.checked }))} />
+                Show status
+              </label>
+            </div>
+          </div>
         </section>
 
         <section className="space-y-3">
@@ -468,7 +495,7 @@ const ExpenseEditorDialog = ({
 
               <div className="mt-4 grid gap-3 md:grid-cols-3">
                 <div>
-                  <p className="text-xs uppercase tracking-[0.2em] text-[#8d6a2f]">Budget</p>
+                  <p className="text-xs uppercase tracking-[0.2em] text-[#8d6a2f]">Cost</p>
                   <p className="mt-1 text-lg font-semibold text-[#112947]">{formatCurrency(draft.totalBudget)}</p>
                 </div>
                 <div>
@@ -501,7 +528,7 @@ const ExpenseEditorDialog = ({
             </div>
 
             <div className="grid gap-2 rounded-xl bg-white p-3 text-sm text-[#314862] md:grid-cols-2">
-              <p>Budget: {formatCurrency(draft.totalBudget)}</p>
+              <p>Cost: {formatCurrency(draft.totalBudget)}</p>
               <p>Funded: {formatCurrency(draft.fundedAmount)}</p>
               <p>Remaining: {formatCurrency(getRemainingAmount(draft))}</p>
               <p>Progress: {Math.round(getFundingPercentage(draft))}%</p>
@@ -637,7 +664,7 @@ export const AdminExpensesPage = () => {
       <div className="grid gap-4 md:grid-cols-3">
         <Card className="rounded-xl border-[#dbe4f0] bg-white">
           <CardHeader>
-            <CardTitle>Total Budget</CardTitle>
+            <CardTitle>Total Cost</CardTitle>
             <CardDescription>All expense items</CardDescription>
           </CardHeader>
           <CardContent>
@@ -742,7 +769,7 @@ export const AdminExpensesPage = () => {
                   ) : null}
                 </div>
                 <div>
-                  <p className="text-xs uppercase tracking-[0.2em] text-[#97723a]">Budget</p>
+                  <p className="text-xs uppercase tracking-[0.2em] text-[#97723a]">Cost</p>
                   <p className="mt-2 text-base font-semibold text-[#112947]">{formatCurrency(expense.totalBudget)}</p>
                 </div>
                 <div>
@@ -870,7 +897,7 @@ export const AdminExpensesPage = () => {
                   <p className="mt-2 line-clamp-2 text-sm text-[#556b86]">{expense.description}</p>
                 </div>
                 <div>
-                  <p className="text-xs uppercase tracking-[0.2em] text-[#97723a]">Budget</p>
+                  <p className="text-xs uppercase tracking-[0.2em] text-[#97723a]">Cost</p>
                   <p className="mt-2 text-base font-semibold text-[#112947]">{formatCurrency(expense.totalBudget)}</p>
                 </div>
                 <div>

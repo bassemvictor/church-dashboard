@@ -36,6 +36,10 @@ import {
   isNewsVisible,
   type ReorderChurchNewsInput,
   type ReorderChurchExpensesInput,
+  type ChurchDidYouKnow,
+  type CreateChurchDidYouKnowInput,
+  type ReorderChurchDidYouKnowInput,
+  isDidYouKnowVisible,
 } from "../../../shared/church-dashboard.js";
 
 type BaseItem = {
@@ -62,6 +66,9 @@ type ExpenseItem = BaseItem & {
   category: ChurchExpenseCategory;
   totalBudget: number;
   fundedAmount: number;
+  showFunded?: boolean;
+  showProgress?: boolean;
+  showStatus?: boolean;
   imageUrl?: string;
   imageKey?: string;
   icon?: string;
@@ -91,6 +98,18 @@ type NewsItem = BaseItem & {
   icon?: string;
   active: boolean;
   priority?: number;
+  displayOrder: number;
+};
+
+type DidYouKnowItem = BaseItem & {
+  id: string;
+  factText: string;
+  highlightText?: string;
+  supportingText?: string;
+  icon?: string;
+  visibleFrom?: string;
+  visibleUntil?: string;
+  active: boolean;
   displayOrder: number;
 };
 
@@ -150,6 +169,7 @@ const jsonResponse = (statusCode: number, body: unknown) => ({
 const padDisplayOrder = (displayOrder: number) => displayOrder.toString().padStart(5, "0");
 const expensePk = (id: string) => `EXPENSE#${id}`;
 const newsPk = (id: string) => `NEWS#${id}`;
+const didYouKnowPk = (id: string) => `DID_YOU_KNOW#${id}`;
 const settingsPk = () => "SETTINGS#DASHBOARD";
 
 const normalizeGroups = (value: unknown): string[] => {
@@ -332,6 +352,9 @@ const validateExpenseInput = (input: Record<string, unknown>): CreateChurchExpen
     category,
     totalBudget: parseNumber(input.totalBudget, "totalBudget"),
     fundedAmount: parseNumber(input.fundedAmount, "fundedAmount"),
+    showFunded: input.showFunded === undefined ? undefined : parseBoolean(input.showFunded, "showFunded"),
+    showProgress: input.showProgress === undefined ? undefined : parseBoolean(input.showProgress, "showProgress"),
+    showStatus: input.showStatus === undefined ? undefined : parseBoolean(input.showStatus, "showStatus"),
     imageUrl: parseOptionalString(input.imageUrl),
     imageKey: parseOptionalString(input.imageKey),
     icon: parseOptionalString(input.icon),
@@ -343,10 +366,27 @@ const validateExpenseInput = (input: Record<string, unknown>): CreateChurchExpen
   };
 };
 
+const validateDidYouKnowInput = (input: Record<string, unknown>): CreateChurchDidYouKnowInput => {
+  const visibleFrom = parseOptionalIsoDate(input.visibleFrom, "visibleFrom");
+  const visibleUntil = parseOptionalIsoDate(input.visibleUntil, "visibleUntil");
+  validateVisibilityRange(visibleFrom, visibleUntil);
+
+  return {
+    factText: parseRequiredString(input.factText, "factText"),
+    highlightText: parseOptionalString(input.highlightText),
+    supportingText: parseOptionalString(input.supportingText),
+    icon: parseOptionalString(input.icon),
+    visibleFrom,
+    visibleUntil,
+    active: parseBoolean(input.active, "active"),
+  };
+};
+
 const validateSettingsInput = (input: Record<string, unknown>): DashboardSettings => {
   const common = parseObject(input.common, "common");
   const expenses = parseObject(input.expenses, "expenses");
   const news = parseObject(input.news, "news");
+  const didYouKnow = input.didYouKnow === undefined ? undefined : parseObject(input.didYouKnow, "didYouKnow");
   const liturgy = parseObject(input.liturgy, "liturgy");
 
   return {
@@ -356,6 +396,9 @@ const validateSettingsInput = (input: Record<string, unknown>): DashboardSetting
       showDate: parseBoolean(common.showDate, "common.showDate"),
       showExpensesPage: parseBoolean(common.showExpensesPage, "common.showExpensesPage"),
       showNewsPage: parseBoolean(common.showNewsPage, "common.showNewsPage"),
+      showDidYouKnowPage: common.showDidYouKnowPage === undefined
+        ? defaultDashboardSettings.common.showDidYouKnowPage
+        : parseBoolean(common.showDidYouKnowPage, "common.showDidYouKnowPage"),
       refreshIntervalSeconds: parsePositiveNumber(common.refreshIntervalSeconds, "common.refreshIntervalSeconds", 15),
       mainViewRotationIntervalSeconds: parsePositiveNumber(
         common.mainViewRotationIntervalSeconds,
@@ -376,6 +419,14 @@ const validateSettingsInput = (input: Record<string, unknown>): DashboardSetting
       dashboardTitle: parseRequiredString(news.dashboardTitle, "news.dashboardTitle"),
       itemsPerPage: parsePositiveNumber(news.itemsPerPage, "news.itemsPerPage", 1),
     },
+    didYouKnow: {
+      dashboardTitle: didYouKnow?.dashboardTitle === undefined
+        ? defaultDashboardSettings.didYouKnow.dashboardTitle
+        : parseRequiredString(didYouKnow.dashboardTitle, "didYouKnow.dashboardTitle"),
+      itemsPerPage: didYouKnow?.itemsPerPage === undefined
+        ? defaultDashboardSettings.didYouKnow.itemsPerPage
+        : parsePositiveNumber(didYouKnow.itemsPerPage, "didYouKnow.itemsPerPage", 1),
+    },
     liturgy: {
       googleCalendarId: parseOptionalString(liturgy.googleCalendarId),
       googleCalendarApiKey: parseOptionalString(liturgy.googleCalendarApiKey),
@@ -395,8 +446,15 @@ const validateSettingsInput = (input: Record<string, unknown>): DashboardSetting
   };
 };
 
-const sanitizeDashboardSettings = (settings?: DashboardSettings): DashboardSettings =>
-  settings ?? defaultDashboardSettings;
+const sanitizeDashboardSettings = (settings?: Partial<DashboardSettings>): DashboardSettings => ({
+  ...defaultDashboardSettings,
+  ...settings,
+  common: { ...defaultDashboardSettings.common, ...settings?.common },
+  expenses: { ...defaultDashboardSettings.expenses, ...settings?.expenses },
+  news: { ...defaultDashboardSettings.news, ...settings?.news },
+  didYouKnow: { ...defaultDashboardSettings.didYouKnow, ...settings?.didYouKnow },
+  liturgy: { ...defaultDashboardSettings.liturgy, ...settings?.liturgy },
+});
 
 const sanitizePublicDashboardSettings = (settings: DashboardSettings): DashboardSettings => ({
   ...settings,
@@ -418,6 +476,9 @@ const toExpense = (item: ExpenseItem): ChurchExpense => ({
   category: item.category,
   totalBudget: item.totalBudget,
   fundedAmount: item.fundedAmount,
+  showFunded: item.showFunded ?? true,
+  showProgress: item.showProgress ?? true,
+  showStatus: item.showStatus ?? true,
   imageUrl: item.imageUrl,
   imageKey: item.imageKey,
   icon: item.icon,
@@ -470,6 +531,31 @@ const toNewsItem = (news: ChurchNews): NewsItem => ({
   GSI2PK: news.active ? "NEWS#ACTIVE" : "NEWS#INACTIVE",
   GSI2SK: `${padDisplayOrder(news.displayOrder)}#${news.id}`,
   ...news,
+});
+
+const toDidYouKnow = (item: DidYouKnowItem): ChurchDidYouKnow => ({
+  id: item.id,
+  factText: item.factText,
+  highlightText: item.highlightText,
+  supportingText: item.supportingText,
+  icon: item.icon,
+  visibleFrom: item.visibleFrom,
+  visibleUntil: item.visibleUntil,
+  active: item.active,
+  displayOrder: item.displayOrder,
+  createdAt: item.createdAt,
+  updatedAt: item.updatedAt,
+});
+
+const toDidYouKnowItem = (item: ChurchDidYouKnow): DidYouKnowItem => ({
+  PK: didYouKnowPk(item.id),
+  SK: "DID_YOU_KNOW",
+  entityType: "ChurchDidYouKnow",
+  GSI1PK: "DID_YOU_KNOW",
+  GSI1SK: `${padDisplayOrder(item.displayOrder)}#${item.id}`,
+  GSI2PK: item.active ? "DID_YOU_KNOW#ACTIVE" : "DID_YOU_KNOW#INACTIVE",
+  GSI2SK: `${padDisplayOrder(item.displayOrder)}#${item.id}`,
+  ...item,
 });
 
 const parseOptionalIsoDate = (value: unknown, fieldName: string) => {
@@ -569,6 +655,24 @@ const listNews = async (activeOnly: boolean, now = new Date()) => {
   return visibleItems
     .map(toNews)
     .sort(activeOnly ? compareNews : (left, right) => left.displayOrder - right.displayOrder);
+};
+
+const listDidYouKnow = async (activeOnly: boolean, now = new Date()) => {
+  const result = await documentClient.send(
+    new QueryCommand({
+      TableName: tableName,
+      IndexName: activeOnly ? "GSI2" : "GSI1",
+      KeyConditionExpression: activeOnly ? "GSI2PK = :pk" : "GSI1PK = :pk",
+      ExpressionAttributeValues: {
+        ":pk": activeOnly ? "DID_YOU_KNOW#ACTIVE" : "DID_YOU_KNOW",
+      },
+    }),
+  );
+
+  const items = (result.Items ?? []) as DidYouKnowItem[];
+  return (activeOnly ? items.filter((item) => isDidYouKnowVisible(item, now)) : items)
+    .sort((left, right) => left.displayOrder - right.displayOrder)
+    .map(toDidYouKnow);
 };
 
 const hasConfiguredGoogleCalendar = (settings: DashboardSettings) =>
@@ -721,6 +825,17 @@ const getNews = async (id: string) => {
   return result.Item as NewsItem | undefined;
 };
 
+const getDidYouKnow = async (id: string) => {
+  const result = await documentClient.send(
+    new GetCommand({
+      TableName: tableName,
+      Key: { PK: didYouKnowPk(id), SK: "DID_YOU_KNOW" },
+    }),
+  );
+
+  return result.Item as DidYouKnowItem | undefined;
+};
+
 const getSettings = async () => {
   const result = await documentClient.send(
     new GetCommand({
@@ -780,6 +895,9 @@ const createExpense = async (input: CreateChurchExpenseInput) => {
     createdAt: now,
     updatedAt: now,
     ...input,
+    showFunded: input.showFunded ?? false,
+    showProgress: input.showProgress ?? false,
+    showStatus: input.showStatus ?? false,
     requiresApproval: input.requiresApproval ?? false,
     approvalStatus: input.requiresApproval ? "PENDING" : "NOT_REQUIRED",
   };
@@ -819,6 +937,20 @@ const createNews = async (input: CreateChurchNewsInput) => {
   return news;
 };
 
+const createDidYouKnow = async (input: CreateChurchDidYouKnowInput) => {
+  const now = new Date().toISOString();
+  const item: ChurchDidYouKnow = {
+    id: randomUUID(),
+    displayOrder: (await listDidYouKnow(false)).length + 1,
+    createdAt: now,
+    updatedAt: now,
+    ...input,
+  };
+
+  await documentClient.send(new PutCommand({ TableName: tableName, Item: toDidYouKnowItem(item) }));
+  return item;
+};
+
 const updateExpense = async (id: string, input: CreateChurchExpenseInput) => {
   const existing = await getExpense(id);
   if (!existing) {
@@ -841,6 +973,9 @@ const updateExpense = async (id: string, input: CreateChurchExpenseInput) => {
     displayOrder: existing.displayOrder,
     updatedAt: new Date().toISOString(),
     ...input,
+    showFunded: input.showFunded ?? existing.showFunded ?? true,
+    showProgress: input.showProgress ?? existing.showProgress ?? true,
+    showStatus: input.showStatus ?? existing.showStatus ?? true,
     requiresApproval: nextRequiresApproval,
     approvalStatus: nextApprovalStatus,
   };
@@ -981,6 +1116,34 @@ const setNewsActiveState = async (id: string, active: boolean) => {
   return news;
 };
 
+const updateDidYouKnow = async (id: string, input: CreateChurchDidYouKnowInput) => {
+  const existing = await getDidYouKnow(id);
+  if (!existing) {
+    throw Object.assign(new Error("Did You Know item not found."), { statusCode: 404 });
+  }
+
+  const item: ChurchDidYouKnow = {
+    id,
+    displayOrder: existing.displayOrder,
+    createdAt: existing.createdAt,
+    updatedAt: new Date().toISOString(),
+    ...input,
+  };
+  await documentClient.send(new PutCommand({ TableName: tableName, Item: toDidYouKnowItem(item) }));
+  return item;
+};
+
+const setDidYouKnowActiveState = async (id: string, active: boolean) => {
+  const existing = await getDidYouKnow(id);
+  if (!existing) {
+    throw Object.assign(new Error("Did You Know item not found."), { statusCode: 404 });
+  }
+
+  const item: ChurchDidYouKnow = { ...toDidYouKnow(existing), active, updatedAt: new Date().toISOString() };
+  await documentClient.send(new PutCommand({ TableName: tableName, Item: toDidYouKnowItem(item) }));
+  return item;
+};
+
 const deleteExpense = async (id: string) => {
   const existing = await getExpense(id);
   if (!existing) {
@@ -1041,6 +1204,25 @@ const deleteNews = async (id: string) => {
   if (reordered.length) {
     await reorderNews({
       items: reordered.map((item) => ({ id: item.id, displayOrder: item.displayOrder })),
+    });
+  }
+};
+
+const deleteDidYouKnow = async (id: string) => {
+  const existing = await getDidYouKnow(id);
+  if (!existing) {
+    throw Object.assign(new Error("Did You Know item not found."), { statusCode: 404 });
+  }
+
+  await documentClient.send(new DeleteCommand({
+    TableName: tableName,
+    Key: { PK: didYouKnowPk(id), SK: "DID_YOU_KNOW" },
+  }));
+
+  const remaining = await listDidYouKnow(false);
+  if (remaining.length) {
+    await reorderDidYouKnow({
+      items: remaining.map((item, index) => ({ id: item.id, displayOrder: index + 1 })),
     });
   }
 };
@@ -1199,6 +1381,64 @@ const reorderNews = async (input: ReorderChurchNewsInput) => {
   return listNews(false);
 };
 
+const reorderDidYouKnow = async (input: ReorderChurchDidYouKnowInput) => {
+  if (!Array.isArray(input.items) || !input.items.length) {
+    throw Object.assign(new Error("items must contain at least one Did You Know item."), { statusCode: 400 });
+  }
+
+  const invalidItem = input.items.find(
+    (item) =>
+      !item ||
+      typeof item.id !== "string" ||
+      !item.id.trim() ||
+      typeof item.displayOrder !== "number" ||
+      !Number.isFinite(item.displayOrder),
+  );
+  if (invalidItem) {
+    throw Object.assign(new Error("Each order item must include a valid id and displayOrder."), { statusCode: 400 });
+  }
+
+  const result = await documentClient.send(new BatchGetCommand({
+    RequestItems: {
+      [tableName]: {
+        Keys: input.items.map((item) => ({ PK: didYouKnowPk(item.id), SK: "DID_YOU_KNOW" })),
+      },
+    },
+  }));
+  const existingItems = (result.Responses?.[tableName] ?? []) as DidYouKnowItem[];
+  if (existingItems.length !== input.items.length) {
+    throw Object.assign(new Error("One or more Did You Know items could not be found."), { statusCode: 404 });
+  }
+
+  const existingMap = new Map(existingItems.map((item) => [item.id, item]));
+  const now = new Date().toISOString();
+  const updateRequests = input.items.map((item) => {
+    const existing = existingMap.get(item.id);
+    if (!existing) {
+      throw Object.assign(new Error("Did You Know item not found."), { statusCode: 404 });
+    }
+    const gsiSortKey = `${padDisplayOrder(item.displayOrder)}#${item.id}`;
+    return {
+      Update: {
+        TableName: tableName,
+        Key: { PK: existing.PK, SK: existing.SK },
+        UpdateExpression: "SET displayOrder = :displayOrder, updatedAt = :updatedAt, GSI1SK = :gsi1sk, GSI2SK = :gsi2sk",
+        ExpressionAttributeValues: {
+          ":displayOrder": item.displayOrder,
+          ":updatedAt": now,
+          ":gsi1sk": gsiSortKey,
+          ":gsi2sk": gsiSortKey,
+        },
+      },
+    };
+  });
+
+  for (const requestChunk of chunk(updateRequests, 25)) {
+    await documentClient.send(new TransactWriteCommand({ TransactItems: requestChunk }));
+  }
+  return listDidYouKnow(false);
+};
+
 export const handler: APIGatewayProxyHandlerV2 = async (rawEvent) => {
   const event = rawEvent as APIGatewayProxyEventV2WithJWTAuthorizer;
 
@@ -1223,6 +1463,11 @@ export const handler: APIGatewayProxyHandlerV2 = async (rawEvent) => {
       });
     }
 
+    if (method === "GET" && path === "/did-you-know") {
+      const items = await listDidYouKnow(true);
+      return jsonResponse(200, { items, generatedAt: new Date().toISOString() });
+    }
+
     if (method === "GET" && path === "/liturgies") {
       const settings = await getSettings();
       const items = await listPublicLiturgies(settings);
@@ -1234,15 +1479,17 @@ export const handler: APIGatewayProxyHandlerV2 = async (rawEvent) => {
 
     if (method === "GET" && path === "/dashboard") {
       const settings = await getSettings();
-      const [projects, news, liturgies] = await Promise.all([
+      const [projects, news, didYouKnow, liturgies] = await Promise.all([
         listExpenses(true),
         listNews(true),
+        listDidYouKnow(true),
         listPublicLiturgies(settings),
       ]);
 
       return jsonResponse(200, {
         projects,
         news,
+        didYouKnow,
         liturgies,
         settings: sanitizePublicDashboardSettings(settings),
         serverTime: new Date().toISOString(),
@@ -1269,6 +1516,11 @@ export const handler: APIGatewayProxyHandlerV2 = async (rawEvent) => {
         items: await listNews(false),
         generatedAt: new Date().toISOString(),
       });
+    }
+
+    if (method === "GET" && path === "/admin/did-you-know") {
+      requireAdmin(context);
+      return jsonResponse(200, { items: await listDidYouKnow(false), generatedAt: new Date().toISOString() });
     }
 
     if (method === "GET" && path === "/admin/settings") {
@@ -1307,6 +1559,12 @@ export const handler: APIGatewayProxyHandlerV2 = async (rawEvent) => {
       return jsonResponse(201, await createNews(input));
     }
 
+    if (method === "POST" && path === "/did-you-know") {
+      requireAdmin(context);
+      const input = validateDidYouKnowInput(parseBody<Record<string, unknown>>(event));
+      return jsonResponse(201, await createDidYouKnow(input));
+    }
+
     const approveNewsMatch = path.match(/^\/news\/([^/]+)\/approve$/);
     if (approveNewsMatch && method === "PUT") {
       requireAdmin(context);
@@ -1322,6 +1580,13 @@ export const handler: APIGatewayProxyHandlerV2 = async (rawEvent) => {
       return jsonResponse(200, {
         item: await setNewsActiveState(setNewsActiveMatch[1] ?? "", input.active),
       });
+    }
+
+    const setDidYouKnowActiveMatch = path.match(/^\/did-you-know\/([^/]+)\/active$/);
+    if (setDidYouKnowActiveMatch && method === "PUT") {
+      requireAdmin(context);
+      const input = validateSetActiveInput(parseBody<Record<string, unknown>>(event));
+      return jsonResponse(200, { item: await setDidYouKnowActiveState(setDidYouKnowActiveMatch[1] ?? "", input.active) });
     }
 
     if (method === "PUT" && path === "/expenses/order") {
@@ -1340,6 +1605,12 @@ export const handler: APIGatewayProxyHandlerV2 = async (rawEvent) => {
         items: await reorderNews(input),
         generatedAt: new Date().toISOString(),
       });
+    }
+
+    if (method === "PUT" && path === "/did-you-know/order") {
+      requireAdmin(context);
+      const input = parseBody<ReorderChurchDidYouKnowInput>(event);
+      return jsonResponse(200, { items: await reorderDidYouKnow(input), generatedAt: new Date().toISOString() });
     }
 
     if (method === "PUT" && path === "/admin/settings") {
@@ -1396,6 +1667,24 @@ export const handler: APIGatewayProxyHandlerV2 = async (rawEvent) => {
 
       if (method === "DELETE") {
         await deleteNews(newsId);
+        return jsonResponse(200, { success: true });
+      }
+    }
+
+    const didYouKnowIdMatch = path.match(/^\/did-you-know\/([^/]+)$/);
+    if (didYouKnowIdMatch) {
+      requireAdmin(context);
+      const id = didYouKnowIdMatch[1] ?? "";
+      if (method === "GET") {
+        const item = await getDidYouKnow(id);
+        return item ? jsonResponse(200, toDidYouKnow(item)) : jsonResponse(404, { message: "Did You Know item not found." });
+      }
+      if (method === "PUT") {
+        const input = validateDidYouKnowInput(parseBody<Record<string, unknown>>(event));
+        return jsonResponse(200, await updateDidYouKnow(id, input));
+      }
+      if (method === "DELETE") {
+        await deleteDidYouKnow(id);
         return jsonResponse(200, { success: true });
       }
     }
