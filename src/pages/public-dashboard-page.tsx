@@ -79,6 +79,15 @@ const splitChurchName = (churchName: string) => {
   return { title: normalized, subtitle: "" };
 };
 
+const renderTitleWithBoldMarkers = (value: string) =>
+  value.split(/(\*\*[^*]+\*\*|\*[^*]+\*)/g).map((part, index) => {
+    const isBold = (part.startsWith("**") && part.endsWith("**")) || (part.startsWith("*") && part.endsWith("*"));
+
+    return isBold
+      ? <strong key={index}>{part.replace(/^\*{1,2}|\*{1,2}$/g, "")}</strong>
+      : part;
+  });
+
 const formatAnnouncementDate = (value?: string) => {
   if (!value) {
     return null;
@@ -347,35 +356,35 @@ const ProjectsView = ({ items, todayDateKey }: { items: ChurchExpense[]; todayDa
             : "lg:grid-cols-[1.7fr_2.35fr_0.85fr]";
 
       return (
-        <article className={`grid gap-4 rounded-[1.4rem] border border-[#ede3d2] bg-[#fffdfa]/96 p-4 shadow-[0_14px_36px_rgba(31,42,68,0.05)] lg:items-center ${gridClass}`} key={expense.id}>
-          <div className="flex items-center gap-3">
+        <article className={`grid gap-5 rounded-[1.6rem] border border-[#ede3d2] bg-[#fffdfa]/96 p-6 shadow-[0_14px_36px_rgba(31,42,68,0.05)] lg:items-center ${gridClass}`} key={expense.id}>
+          <div className="flex items-center gap-4">
             {expense.imageUrl ? (
-              <img alt={expense.title} className="h-20 w-24 rounded-[1rem] border border-[#e6d7bb] object-cover" src={expense.imageUrl} />
+              <img alt={expense.title} className="h-28 w-36 rounded-[1.25rem] border border-[#e6d7bb] object-cover" src={expense.imageUrl} />
             ) : (
-              <div className="flex h-20 w-24 shrink-0 items-center justify-center rounded-[1rem] bg-[#112947] text-white">
-                <Icon className="h-9 w-9" />
+              <div className="flex h-28 w-36 shrink-0 items-center justify-center rounded-[1.25rem] bg-[#112947] text-white">
+                <Icon className="h-12 w-12" />
               </div>
             )}
             <div className="min-w-0">
               <div className="flex items-center gap-2.5">
-              <div className="min-w-0"><h2 className="text-[1.65rem] font-semibold leading-tight tracking-[0.03em] text-[#132946]">{expense.title}</h2><p className="mt-1 text-[0.85rem] font-semibold uppercase tracking-[0.24em] text-[#8d6a2f]">Project</p></div>
+              <div className="min-w-0"><h2 className="text-[1.85rem] font-semibold leading-tight tracking-[0.03em] text-[#132946]">{renderTitleWithBoldMarkers(expense.title)}</h2><p className="mt-1.5 text-[0.95rem] font-semibold uppercase tracking-[0.24em] text-[#8d6a2f]">Project</p></div>
               </div>
             </div>
           </div>
 
           <div>
-            <p className="text-[1.1rem] leading-relaxed text-[#415a78] lg:text-[1.25rem]">{expense.description}</p>
-            {dueMeta ? <div className={`mt-3 inline-flex items-center gap-2.5 rounded-full border px-3 py-1.5 ${dueMeta.accentClassName}`}><span className="text-[0.68rem] font-bold uppercase tracking-[0.22em]">{dueMeta.label}</span><span className="text-[0.94rem] font-semibold tracking-[0.03em]">{dueMeta.value}</span></div> : null}
+            <p className="text-[1.2rem] leading-relaxed text-[#415a78] lg:text-[1.35rem]">{expense.description}</p>
+            {dueMeta ? <div className={`mt-3.5 inline-flex items-center gap-2.5 rounded-full border px-3.5 py-2 ${dueMeta.accentClassName}`}><span className="text-[0.75rem] font-bold uppercase tracking-[0.22em]">{dueMeta.label}</span><span className="text-[1.05rem] font-semibold tracking-[0.03em]">{dueMeta.value}</span></div> : null}
           </div>
 
           <div>
-            <p className="text-[0.85rem] font-semibold uppercase tracking-[0.2em] text-[#8d6a2f]">Cost</p>
-            <p className="mt-1 text-[1.75rem] font-semibold text-[#132946]">{formatCurrency(expense.totalBudget)}</p>
+            <p className="text-[0.95rem] font-semibold uppercase tracking-[0.2em] text-[#8d6a2f]">Cost</p>
+            <p className="mt-1 text-[2rem] font-semibold text-[#132946]">{formatCurrency(expense.totalBudget)}</p>
           </div>
 
-          {showFunded ? <div><p className="text-[0.85rem] font-semibold uppercase tracking-[0.2em] text-[#8d6a2f]">Funded</p><p className={`mt-1 text-[1.75rem] font-semibold ${statusMeta.tone}`}>{formatCurrency(expense.fundedAmount)}</p></div> : null}
-          {showProgress ? <div><p className="text-[0.85rem] font-semibold uppercase tracking-[0.2em] text-[#8d6a2f]">Progress</p><div className="mt-2 h-4 rounded-full bg-[#ece8e1]"><div className={`h-4 rounded-full bg-gradient-to-r ${statusMeta.trackTone}`} style={{ width: `${progress}%` }} /></div><p className={`mt-1 text-[1.3rem] font-semibold ${statusMeta.tone}`}>{Math.round(percentage)}%</p></div> : null}
-          {showStatus ? <div className="flex items-center gap-2.5"><>{status === "FUNDED" || status === "ON_TRACK" ? <CheckCircle2 className={`h-10 w-10 shrink-0 ${statusMeta.tone}`} /> : <CircleAlert className={`h-10 w-10 shrink-0 ${statusMeta.tone}`} />}</><div><p className="text-[0.85rem] font-semibold uppercase tracking-[0.2em] text-[#8d6a2f]">Status</p><p className={`mt-1 text-[1.3rem] font-semibold uppercase ${statusMeta.tone}`}>{expense.customStatusText || statusMeta.label}</p><p className="text-base text-[#556b86]">{expense.customSubText || statusMeta.subtext}</p></div></div> : null}
+          {showFunded ? <div><p className="text-[0.95rem] font-semibold uppercase tracking-[0.2em] text-[#8d6a2f]">Funded</p><p className={`mt-1 text-[2rem] font-semibold ${statusMeta.tone}`}>{formatCurrency(expense.fundedAmount)}</p></div> : null}
+          {showProgress ? <div><p className="text-[0.95rem] font-semibold uppercase tracking-[0.2em] text-[#8d6a2f]">Progress</p><div className="mt-2.5 h-5 rounded-full bg-[#ece8e1]"><div className={`h-5 rounded-full bg-gradient-to-r ${statusMeta.trackTone}`} style={{ width: `${progress}%` }} /></div><p className={`mt-1.5 text-[1.45rem] font-semibold ${statusMeta.tone}`}>{Math.round(percentage)}%</p></div> : null}
+          {showStatus ? <div className="flex items-center gap-3"><>{status === "FUNDED" || status === "ON_TRACK" ? <CheckCircle2 className={`h-12 w-12 shrink-0 ${statusMeta.tone}`} /> : <CircleAlert className={`h-12 w-12 shrink-0 ${statusMeta.tone}`} />}</><div><p className="text-[0.95rem] font-semibold uppercase tracking-[0.2em] text-[#8d6a2f]">Status</p><p className={`mt-1 text-[1.45rem] font-semibold uppercase ${statusMeta.tone}`}>{expense.customStatusText || statusMeta.label}</p><p className="text-[1.1rem] text-[#556b86]">{expense.customSubText || statusMeta.subtext}</p></div></div> : null}
         </article>
       );
     })}
@@ -407,7 +416,7 @@ const NewsView = ({
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <h2 className="text-[1.85rem] font-semibold leading-tight tracking-[0.03em] text-[#132946]">
-                  {item.title}
+                  {renderTitleWithBoldMarkers(item.title)}
                 </h2>
                 <span className="rounded-full bg-[#f8f2e7] px-3.5 py-1.5 text-[0.88rem] font-semibold uppercase tracking-[0.2em] text-[#8d6a2f]">
                   {newsCategoryLabels[item.category ?? "GENERAL"]}
@@ -477,7 +486,7 @@ const DidYouKnowView = ({ items }: { items: ChurchDidYouKnow[] }) => (
             </div>
             <div className="min-w-0 flex-1 pt-1">
               <p className="max-h-[8.2rem] overflow-hidden text-[clamp(1.3rem,1.8vw,2.1rem)] font-medium leading-[1.27] text-[#183654]">
-                {item.factText}
+                {renderTitleWithBoldMarkers(item.factText)}
               </p>
             {item.highlightText ? (
               <p className="mt-2 text-[clamp(2rem,3.3vw,3.8rem)] font-semibold leading-none tracking-[-0.035em] text-[#a4772d]">
