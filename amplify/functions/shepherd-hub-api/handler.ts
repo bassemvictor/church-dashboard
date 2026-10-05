@@ -37,6 +37,7 @@ import {
   type ReorderChurchNewsInput,
   type ReorderChurchExpensesInput,
   type ChurchDidYouKnow,
+  type DidYouKnowCardColor,
   type CreateChurchDidYouKnowInput,
   type ReorderChurchDidYouKnowInput,
   isDidYouKnowVisible,
@@ -107,6 +108,7 @@ type DidYouKnowItem = BaseItem & {
   highlightText?: string;
   supportingText?: string;
   icon?: string;
+  colorTheme?: DidYouKnowCardColor;
   visibleFrom?: string;
   visibleUntil?: string;
   active: boolean;
@@ -370,12 +372,17 @@ const validateDidYouKnowInput = (input: Record<string, unknown>): CreateChurchDi
   const visibleFrom = parseOptionalIsoDate(input.visibleFrom, "visibleFrom");
   const visibleUntil = parseOptionalIsoDate(input.visibleUntil, "visibleUntil");
   validateVisibilityRange(visibleFrom, visibleUntil);
+  const colorTheme = parseOptionalString(input.colorTheme);
+  if (colorTheme && !["default", "blue", "green", "rose", "violet"].includes(colorTheme)) {
+    throw Object.assign(new Error("colorTheme is invalid."), { statusCode: 400 });
+  }
 
   return {
     factText: parseRequiredString(input.factText, "factText"),
     highlightText: parseOptionalString(input.highlightText),
     supportingText: parseOptionalString(input.supportingText),
     icon: parseOptionalString(input.icon),
+    colorTheme: colorTheme as DidYouKnowCardColor | undefined,
     visibleFrom,
     visibleUntil,
     active: parseBoolean(input.active, "active"),
@@ -539,6 +546,7 @@ const toDidYouKnow = (item: DidYouKnowItem): ChurchDidYouKnow => ({
   highlightText: item.highlightText,
   supportingText: item.supportingText,
   icon: item.icon,
+  colorTheme: item.colorTheme,
   visibleFrom: item.visibleFrom,
   visibleUntil: item.visibleUntil,
   active: item.active,

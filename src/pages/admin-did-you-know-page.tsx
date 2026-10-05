@@ -7,6 +7,7 @@ import { Button } from "../components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
 import { Checkbox } from "../components/ui/checkbox";
 import { Input } from "../components/ui/input";
+import { Select } from "../components/ui/select";
 import { Textarea } from "../components/ui/textarea";
 import {
   getIconComponent,
@@ -35,6 +36,7 @@ const buildEmptyDraft = (): DidYouKnowDraft => ({
   highlightText: "",
   supportingText: "",
   icon: "coins",
+  colorTheme: "default",
   visibleFrom: "",
   visibleUntil: "",
   active: true,
@@ -45,6 +47,7 @@ const buildDraftFromItem = (item: ChurchDidYouKnow): DidYouKnowDraft => ({
   highlightText: item.highlightText ?? "",
   supportingText: item.supportingText ?? "",
   icon: item.icon ?? "coins",
+  colorTheme: item.colorTheme ?? "default",
   visibleFrom: toDateInputValue(item.visibleFrom),
   visibleUntil: toDateInputValue(item.visibleUntil),
   active: item.active,
@@ -92,6 +95,7 @@ const DidYouKnowEditor = ({ item, open, onClose }: { item: ChurchDidYouKnow | nu
           highlightText: normalizeOptionalValue(draft.highlightText),
           supportingText: normalizeOptionalValue(draft.supportingText),
           icon: normalizeOptionalValue(draft.icon),
+          colorTheme: draft.colorTheme === "default" ? undefined : draft.colorTheme,
           visibleFrom: normalizeDateValue(draft.visibleFrom),
           visibleUntil: normalizeDateValue(draft.visibleUntil, "end"),
           active: draft.active,
@@ -128,6 +132,16 @@ const DidYouKnowEditor = ({ item, open, onClose }: { item: ChurchDidYouKnow | nu
           <label className="space-y-2">
             <span className="text-sm font-medium text-[#112947]">Supporting text</span>
             <Textarea onChange={(event) => setDraft((current) => ({ ...current, supportingText: event.target.value }))} placeholder="Your support helps keep our church running and serving our community." rows={2} value={draft.supportingText ?? ""} />
+          </label>
+          <label className="space-y-2">
+            <span className="text-sm font-medium text-[#112947]">Card color</span>
+            <Select onChange={(event) => setDraft((current) => ({ ...current, colorTheme: event.target.value as DidYouKnowDraft["colorTheme"] }))} value={draft.colorTheme ?? "default"}>
+              <option value="default">Default navy and cream</option>
+              <option value="blue">Blue</option>
+              <option value="green">Green</option>
+              <option value="rose">Rose</option>
+              <option value="violet">Violet</option>
+            </Select>
           </label>
           <VisibilityWindowFields onVisibleFromChange={(value) => setDraft((current) => ({ ...current, visibleFrom: value }))} onVisibleUntilChange={(value) => setDraft((current) => ({ ...current, visibleUntil: value }))} visibleFrom={draft.visibleFrom} visibleUntil={draft.visibleUntil} />
           <label className="flex items-center gap-3 rounded-2xl bg-[#f4f7fc] px-3 py-3 text-sm text-[#304964] md:col-span-2">

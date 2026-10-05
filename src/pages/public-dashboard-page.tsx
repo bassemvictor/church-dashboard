@@ -88,6 +88,14 @@ const renderTitleWithBoldMarkers = (value: string) =>
       : part;
   });
 
+const didYouKnowCardStyles = {
+  default: { card: "border-[#eadfcf] bg-[#fffdfa]/96", accent: "bg-[#f8f0df]", icon: "bg-[#112947] text-white", fact: "text-[#183654]", highlight: "text-[#a4772d]", supporting: "text-[#526a82]" },
+  blue: { card: "border-[#bfd9ed] bg-[#f4faff]/96", accent: "bg-[#dceffc]", icon: "bg-[#165b8c] text-white", fact: "text-[#123d5d]", highlight: "text-[#176b9d]", supporting: "text-[#456b86]" },
+  green: { card: "border-[#c8dfcf] bg-[#f5fbf5]/96", accent: "bg-[#e0f0e2]", icon: "bg-[#296343] text-white", fact: "text-[#1c4c33]", highlight: "text-[#53833a]", supporting: "text-[#4f6e5a]" },
+  rose: { card: "border-[#eccbd2] bg-[#fff7f8]/96", accent: "bg-[#fae4e8]", icon: "bg-[#974b5b] text-white", fact: "text-[#6f3041]", highlight: "text-[#b65f6f]", supporting: "text-[#805a64]" },
+  violet: { card: "border-[#d8c9eb] bg-[#faf7ff]/96", accent: "bg-[#ece4f8]", icon: "bg-[#624a8e] text-white", fact: "text-[#483467]", highlight: "text-[#8061aa]", supporting: "text-[#685b7c]" },
+} as const;
+
 const formatAnnouncementDate = (value?: string) => {
   if (!value) {
     return null;
@@ -473,28 +481,29 @@ const DidYouKnowView = ({ items }: { items: ChurchDidYouKnow[] }) => (
   <div className="grid content-start gap-4 md:grid-cols-2">
     {items.map((item) => {
       const Icon = getIconComponent(item.icon);
+      const colorStyle = didYouKnowCardStyles[item.colorTheme ?? "default"];
 
       return (
         <article
-          className="relative overflow-hidden rounded-[1.7rem] border border-[#eadfcf] bg-[#fffdfa]/96 p-5 shadow-[0_14px_36px_rgba(31,42,68,0.05)] lg:p-7"
+          className={`relative overflow-hidden rounded-[1.7rem] border p-5 shadow-[0_14px_36px_rgba(31,42,68,0.05)] lg:p-7 ${colorStyle.card}`}
           key={item.id}
         >
-          <div className="absolute right-0 top-0 h-24 w-24 rounded-bl-[5rem] bg-[#f8f0df]" />
+          <div className={`absolute right-0 top-0 h-24 w-24 rounded-bl-[5rem] ${colorStyle.accent}`} />
           <div className="relative flex items-start gap-4">
-            <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-[1.25rem] bg-[#112947] text-white shadow-[0_10px_20px_rgba(17,41,71,0.16)] lg:h-20 lg:w-20">
+            <div className={`flex h-16 w-16 shrink-0 items-center justify-center rounded-[1.25rem] shadow-[0_10px_20px_rgba(17,41,71,0.16)] lg:h-20 lg:w-20 ${colorStyle.icon}`}>
               <Icon className="h-8 w-8 lg:h-10 lg:w-10" />
             </div>
             <div className="min-w-0 flex-1 pt-1">
-              <p className="max-h-[8.2rem] overflow-hidden text-[clamp(1.3rem,1.8vw,2.1rem)] font-medium leading-[1.27] text-[#183654]">
+              <p className={`max-h-[8.2rem] overflow-hidden text-[clamp(1.3rem,1.8vw,2.1rem)] font-medium leading-[1.27] ${colorStyle.fact}`}>
                 {renderTitleWithBoldMarkers(item.factText)}
               </p>
             {item.highlightText ? (
-              <p className="mt-2 text-[clamp(2rem,3.3vw,3.8rem)] font-semibold leading-none tracking-[-0.035em] text-[#a4772d]">
+              <p className={`mt-2 text-[clamp(2rem,3.3vw,3.8rem)] font-semibold leading-none tracking-[-0.035em] ${colorStyle.highlight}`}>
                 {item.highlightText}
               </p>
             ) : null}
             {item.supportingText ? (
-              <p className="mt-4 max-h-[5rem] overflow-hidden text-[clamp(1rem,1.2vw,1.35rem)] leading-relaxed text-[#526a82]">
+              <p className={`mt-4 max-h-[5rem] overflow-hidden text-[clamp(1rem,1.2vw,1.35rem)] leading-relaxed ${colorStyle.supporting}`}>
                 {item.supportingText}
               </p>
             ) : null}

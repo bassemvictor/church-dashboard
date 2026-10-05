@@ -119,6 +119,7 @@ export type ChurchDidYouKnow = {
   highlightText?: string;
   supportingText?: string;
   icon?: string;
+  colorTheme?: DidYouKnowCardColor;
   visibleFrom?: string;
   visibleUntil?: string;
   active: boolean;
@@ -126,6 +127,8 @@ export type ChurchDidYouKnow = {
   createdAt: string;
   updatedAt: string;
 };
+
+export type DidYouKnowCardColor = "default" | "blue" | "green" | "rose" | "violet";
 
 export type ChurchLiturgy = {
   id: string;
@@ -213,6 +216,7 @@ export type CreateChurchDidYouKnowInput = {
   highlightText?: string;
   supportingText?: string;
   icon?: string;
+  colorTheme?: DidYouKnowCardColor;
   visibleFrom?: string;
   visibleUntil?: string;
   active: boolean;
