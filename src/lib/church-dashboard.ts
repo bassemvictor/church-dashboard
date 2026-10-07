@@ -388,6 +388,7 @@ export const usePublicDashboard = () =>
           ...response.settings,
           common: { ...defaultDashboardSettings.common, ...response.settings?.common },
           expenses: { ...defaultDashboardSettings.expenses, ...response.settings?.expenses },
+          budgetProgress: { ...defaultDashboardSettings.budgetProgress, ...response.settings?.budgetProgress },
           news: { ...defaultDashboardSettings.news, ...response.settings?.news },
           didYouKnow: { ...defaultDashboardSettings.didYouKnow, ...response.settings?.didYouKnow },
           liturgy: { ...defaultDashboardSettings.liturgy, ...response.settings?.liturgy },

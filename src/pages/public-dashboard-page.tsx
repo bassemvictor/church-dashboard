@@ -342,9 +342,51 @@ const DashboardHeader = ({
   </section>
 );
 
-const ProjectsView = ({ items, todayDateKey }: { items: ChurchExpense[]; todayDateKey: string }) => (
-  <div className="space-y-3 pt-2">
-    {items.map((expense) => {
+const TotalBudgetProgress = ({ percentage }: { percentage: number }) => {
+  const displayedPercentage = Math.max(0, Math.min(100, Math.round(percentage)));
+  const markerPosition = Math.max(6, Math.min(94, 100 - displayedPercentage));
+
+  return (
+    <aside aria-label={`Budget progress: ${displayedPercentage}%`} className="flex h-full min-w-[13rem] items-center justify-end px-3 py-3">
+      <div className="flex h-full min-w-8 flex-col items-center gap-2">
+        <span className="shrink-0 text-center text-[0.58rem] font-semibold uppercase tracking-[0.14em] text-[#8d6a2f]">Annual expenses</span>
+        <div className="relative min-h-[220px] w-8 flex-1">
+          <div className="absolute inset-0 overflow-hidden rounded-full border-[5px] border-[#132946] bg-[#edf1f5] shadow-inner">
+            <div
+              className="absolute inset-x-0 bottom-0 rounded-b-full bg-[#10b5c4] transition-[height] duration-500"
+              style={{ height: `${displayedPercentage}%` }}
+            />
+          </div>
+          <div
+            className="absolute right-full z-10 mr-3 whitespace-nowrap"
+            style={{ top: `${markerPosition}%` }}
+          >
+            <span className="absolute bottom-full right-0 mb-4 text-[0.58rem] font-semibold uppercase tracking-[0.14em] text-[#8d6a2f]">Total funded</span>
+            <div className="flex -translate-y-1/2 items-center gap-1.5">
+              <span className="text-xl font-semibold tabular-nums text-[#132946]">{displayedPercentage}%</span>
+              <span aria-hidden="true" className="h-0 w-0 border-y-[11px] border-l-[15px] border-y-transparent border-l-[#132946]" />
+            </div>
+          </div>
+        </div>
+      </div>
+    </aside>
+  );
+};
+
+const ProjectsView = ({
+  items,
+  budgetProgressPercentage,
+  showTotalBudgetProgress,
+  todayDateKey,
+}: {
+  items: ChurchExpense[];
+  budgetProgressPercentage: number;
+  showTotalBudgetProgress: boolean;
+  todayDateKey: string;
+}) => (
+  <div className={`grid h-full pt-2 ${showTotalBudgetProgress ? "lg:grid-cols-[minmax(0,1fr)_auto] lg:gap-3" : ""}`}>
+    <div className="min-h-0 space-y-3">
+      {items.map((expense) => {
       const Icon = getIconComponent(expense.icon);
       const percentage = getFundingPercentage(expense);
       const progress = getClampedFundingPercentage(expense);
@@ -397,7 +439,9 @@ const ProjectsView = ({ items, todayDateKey }: { items: ChurchExpense[]; todayDa
       );
     })}
 
-    {!items.length ? <div className="flex min-h-[320px] items-center justify-center rounded-[1.5rem] border border-dashed border-[#d7c5a3] bg-[#fffaf2] px-5 text-center"><div><p className="text-2xl font-semibold text-[#112947]">No active projects to display yet</p><p className="mt-2 text-sm text-[#556b86]">Add projects from the admin area and they will appear here automatically.</p></div></div> : null}
+      {!items.length ? <div className="flex min-h-[320px] items-center justify-center rounded-[1.5rem] border border-dashed border-[#d7c5a3] bg-[#fffaf2] px-5 text-center"><div><p className="text-2xl font-semibold text-[#112947]">No active projects to display yet</p><p className="mt-2 text-sm text-[#556b86]">Add projects from the admin area and they will appear here automatically.</p></div></div> : null}
+    </div>
+    {showTotalBudgetProgress ? <TotalBudgetProgress percentage={budgetProgressPercentage} /> : null}
   </div>
 );
 
@@ -879,7 +923,12 @@ export const PublicDashboardPage = () => {
                 </div>
               </div>
             ) : currentView === "projects" ? (
-                  <ProjectsView items={pagedProjects} todayDateKey={todayDateKey} />
+                  <ProjectsView
+                    items={pagedProjects}
+                    budgetProgressPercentage={settings.budgetProgress.percentage}
+                    showTotalBudgetProgress={settings.budgetProgress.show}
+                    todayDateKey={todayDateKey}
+                  />
             ) : currentView === "news" ? (
               <NewsView items={pagedNews} liturgies={upcomingLiturgies} />
             ) : (

@@ -392,6 +392,7 @@ const validateDidYouKnowInput = (input: Record<string, unknown>): CreateChurchDi
 const validateSettingsInput = (input: Record<string, unknown>): DashboardSettings => {
   const common = parseObject(input.common, "common");
   const expenses = parseObject(input.expenses, "expenses");
+  const budgetProgress = input.budgetProgress === undefined ? undefined : parseObject(input.budgetProgress, "budgetProgress");
   const news = parseObject(input.news, "news");
   const didYouKnow = input.didYouKnow === undefined ? undefined : parseObject(input.didYouKnow, "didYouKnow");
   const liturgy = parseObject(input.liturgy, "liturgy");
@@ -421,6 +422,14 @@ const validateSettingsInput = (input: Record<string, unknown>): DashboardSetting
       donationUrl: parseOptionalString(expenses.donationUrl),
       eTransferText: parseOptionalString(expenses.eTransferText),
       itemsPerPage: parsePositiveNumber(expenses.itemsPerPage, "expenses.itemsPerPage", 1),
+    },
+    budgetProgress: {
+      show: budgetProgress?.show === undefined
+        ? defaultDashboardSettings.budgetProgress.show
+        : parseBoolean(budgetProgress.show, "budgetProgress.show"),
+      percentage: budgetProgress?.percentage === undefined
+        ? defaultDashboardSettings.budgetProgress.percentage
+        : parseIntegerInRange(budgetProgress.percentage, "budgetProgress.percentage", 0, 100),
     },
     news: {
       dashboardTitle: parseRequiredString(news.dashboardTitle, "news.dashboardTitle"),
@@ -458,6 +467,7 @@ const sanitizeDashboardSettings = (settings?: Partial<DashboardSettings>): Dashb
   ...settings,
   common: { ...defaultDashboardSettings.common, ...settings?.common },
   expenses: { ...defaultDashboardSettings.expenses, ...settings?.expenses },
+  budgetProgress: { ...defaultDashboardSettings.budgetProgress, ...settings?.budgetProgress },
   news: { ...defaultDashboardSettings.news, ...settings?.news },
   didYouKnow: { ...defaultDashboardSettings.didYouKnow, ...settings?.didYouKnow },
   liturgy: { ...defaultDashboardSettings.liturgy, ...settings?.liturgy },

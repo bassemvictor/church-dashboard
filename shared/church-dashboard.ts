@@ -78,6 +78,10 @@ export type DashboardSettings = {
     eTransferText?: string;
     itemsPerPage: number;
   };
+  budgetProgress: {
+    show: boolean;
+    percentage: number;
+  };
   news: {
     dashboardTitle: string;
     itemsPerPage: number;
@@ -289,6 +293,10 @@ export const defaultDashboardSettings: DashboardSettings = {
     donationUrl: "",
     eTransferText: "give@stmarkexample.ca",
     itemsPerPage: 4,
+  },
+  budgetProgress: {
+    show: true,
+    percentage: 0,
   },
   news: {
     dashboardTitle: "CHURCH NEWS & ANNOUNCEMENTS",

@@ -10,11 +10,12 @@ import { useDashboardSettings, useSaveSettings } from "../lib/church-dashboard";
 import { cn } from "../lib/utils";
 import type { DashboardSettings } from "../../shared/church-dashboard";
 
-type SettingsSection = "common" | "expenses" | "news" | "didYouKnow" | "liturgy";
+type SettingsSection = "common" | "expenses" | "budgetProgress" | "news" | "didYouKnow" | "liturgy";
 
 const sectionOptions: Array<{ id: SettingsSection; label: string }> = [
   { id: "common", label: "Common" },
   { id: "expenses", label: "Projects & Expenses" },
+  { id: "budgetProgress", label: "Budget Progress" },
   { id: "news", label: "Church News" },
   { id: "didYouKnow", label: "Did You Know" },
   { id: "liturgy", label: "Liturgy Calendar" },
@@ -43,6 +44,13 @@ const sectionCopy: Record<
     saveLabel: "Save projects settings",
     successMessage: "Projects & expenses settings saved.",
     errorMessage: "Unable to save projects & expenses settings right now.",
+  },
+  budgetProgress: {
+    title: "Budget Progress Settings",
+    description: "Control the percentage-only budget progress indicator on the projects and expenses screen.",
+    saveLabel: "Save budget progress settings",
+    successMessage: "Budget progress settings saved.",
+    errorMessage: "Unable to save budget progress settings right now.",
   },
   news: {
     title: "Church News Settings",
@@ -132,7 +140,7 @@ export const AdminSettingsPage = () => {
 
       <div
         aria-label="Settings sections"
-        className="grid grid-cols-2 gap-2 rounded-xl border border-[#dbe4f0] bg-white p-2 shadow-[0_10px_24px_rgba(16,33,61,0.04)] sm:grid-cols-3 lg:grid-cols-5"
+        className="grid grid-cols-2 gap-2 rounded-xl border border-[#dbe4f0] bg-white p-2 shadow-[0_10px_24px_rgba(16,33,61,0.04)] sm:grid-cols-3 lg:grid-cols-6"
         role="tablist"
       >
         {sectionOptions.map((section) => {
@@ -404,6 +412,51 @@ export const AdminSettingsPage = () => {
               </CardContent>
             </Card>
           </>
+        ) : null}
+
+        {activeSection === "budgetProgress" ? (
+          <Card className="rounded-xl border-[#dbe4f0] bg-white">
+            <CardHeader>
+              <CardTitle>Side budget progress indicator</CardTitle>
+              <CardDescription>
+                Set the percentage shown in the vertical indicator on the right side of the public projects screen.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <label className="flex max-w-xl items-start gap-3 rounded-2xl bg-[#f4f7fc] px-4 py-4 text-sm text-[#304964]">
+                <Checkbox
+                  checked={draft.budgetProgress.show}
+                  onChange={(event) =>
+                    setDraft({
+                      ...draft,
+                      budgetProgress: { ...draft.budgetProgress, show: event.target.checked },
+                    })}
+                />
+                <span>
+                  <span className="block font-medium text-[#112947]">Show budget progress</span>
+                  <span className="mt-1 block text-xs text-[#6a7f9a]">Only the configured percentage is displayed; budget and funded dollar amounts remain hidden.</span>
+                </span>
+              </label>
+              <label className="mt-4 block max-w-[14rem] space-y-2">
+                <span className="text-sm font-medium text-[#112947]">Progress percentage</span>
+                <Input
+                  max={100}
+                  min={0}
+                  type="number"
+                  value={draft.budgetProgress.percentage}
+                  onChange={(event) =>
+                    setDraft({
+                      ...draft,
+                      budgetProgress: {
+                        ...draft.budgetProgress,
+                        percentage: Math.max(0, Math.min(100, Number(event.target.value) || 0)),
+                      },
+                    })}
+                />
+                <p className="text-xs text-[#6a7f9a]">Enter a whole number from 0 to 100.</p>
+              </label>
+            </CardContent>
+          </Card>
         ) : null}
 
         {activeSection === "news" ? (
